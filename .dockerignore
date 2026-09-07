@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.gitignore
+npm-debug.log*
+README.md
+Dockerfile
+.dockerignore
+docker-compose.yml
+patches
+
+# env ฝั่ง dev ไม่ต้องเข้า image — ค่าจริงส่งตอน runtime ผ่าน env_file
+.env
+.env.local
+.env.*.local
+.env.example

@@ -1,0 +1,26 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pharmacy-dashboard:latest
+    container_name: pharmacy-dashboard
+    restart: unless-stopped
+    ports:
+      # จอห้องยาใช้พอร์ต 4600
+      - "4600:4600"
+    # ค่าจริงทั้งหมด (DB_*, PHARMACY_*) อ่านตอน runtime จากไฟล์นี้
+    # คัดลอกจาก .env.example แล้วแก้ค่า — ไฟล์นี้ไม่เข้า git และไม่เข้า image
+    env_file:
+      - .env.production
+    # ให้ container เรียก MySQL ที่รันบน "เครื่อง host เดียวกัน" ผ่าน host.docker.internal ได้
+    # ถ้า HOSxP อยู่คนละเครื่องในวง LAN ให้ใส่ IP จริงใน DB_HOST แล้วบรรทัดนี้ไม่จำเป็น
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      # ยิง API คิวจริง ไม่ใช่แค่หน้าแรก — DB ล่มแล้วยัง 200 จะได้รู้ว่า container ยังตอบได้จริง
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4600/api/pharmacy/queue').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 60s
+      timeout: 10s
+      start_period: 20s
+      retries: 3
