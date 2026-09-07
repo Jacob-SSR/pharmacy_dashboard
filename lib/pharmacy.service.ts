@@ -1,0 +1,353 @@
+// lib/pharmacy.service.ts
+// อ่านคิวห้องยาของวันนี้จาก HOSxP แล้วสรุปเป็นข้อมูลของหน้าจอ
+//
+// ── ที่มาของแต่ละค่า (ทุกตาราง/คอลัมน์ยึดตามที่ใช้จริงใน ppc-hos-10667) ──────────
+//   ovst            visit ของวัน (vn, hn, oqueue, pt_priority, cur_dep, ovstost, an)
+//   patient         ชื่อ-นามสกุล (pname/fname/lname)
+//   kskdepartment   ชื่อแผนกจาก depcode
+//   ovstost         ชื่อสถานะ visit
+//   service_time    checkpoint เวลาแบบ HOSxP — service12 ตรวจเสร็จ,
+//                   service6 ถึงห้องยา, service16 รับยาแล้ว
+//                   (สูตรแปลง TIME → DATETIME คงตาม lib/servicetime.queries.ts เดิม
+//                    รวมทั้งเคส '24:00:00' ที่ต้องบวกไปวันถัดไป)
+//   opitemrece      บรรทัดรายการที่สั่ง — JOIN drugitems คือ "เฉพาะที่เป็นยา"
+//   sd_queue_calling รายการเรียกคิว (ใช้รู้ว่าเรียกรับยาแล้วหรือยัง)
+//
+// ❗ จอนี้ "อ่านอย่างเดียว" — ต่างจากสคริปต์ PHP เดิม (getMedicineQ.php ฯลฯ)
+//    ที่ UPDATE sd_queue_calling กลับเข้า HOSxP ตอนเรียกชื่อ ที่นี่ไม่เขียนอะไรทั้งสิ้น
+// ❗ ค่าจากภายนอกทุกตัวส่งเป็น placeholder (?) เสมอ ไม่ต่อ string เข้า SQL
+//    (สคริปต์ PHP เดิมต่อ $_POST['depcode'] ตรง ๆ = ช่อง SQL injection — ไม่ทำซ้ำ)
+
+import "server-only";
+import type { RowDataPacket } from "mysql2";
+import { getDb } from "./db";
+import {
+  HOSPITAL_NAME,
+  MANY_ITEMS_THRESHOLD,
+  PHARMACY_DEPCODES,
+  REFRESH_MS,
+  ROW_LIMIT,
+  URGENT_WAIT_MIN,
+  basketOf,
+} from "./pharmacy.env";
+import { demoDrugLines, demoQueue } from "./pharmacy.demo";
+import type {
+  Basket,
+  DrugLine,
+  PharmacyQueueData,
+  QueueRow,
+  Stage,
+} from "./pharmacy.types";
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** วันที่ต้องเป็น YYYY-MM-DD เท่านั้น — กันค่าแปลก ๆ ก่อนถึง DB */
+export function assertDate(d: string): string {
+  if (!DATE_RE.test(d)) throw new Error(`รูปแบบวันที่ไม่ถูกต้อง: ${d}`);
+  return d;
+}
+
+/** วันนี้ตามเวลาเครื่อง (ไม่ใช่ UTC) ในรูป YYYY-MM-DD */
+export function todayISO(): string {
+  const n = new Date();
+  const p = (v: number) => String(v).padStart(2, "0");
+  return `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}`;
+}
+
+const str = (v: unknown): string => (v == null ? "" : String(v)).trim();
+const int = (v: unknown): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.trunc(n) : 0;
+};
+
+/**
+ * แปลงคอลัมน์ TIME ของ service_time เป็น DATETIME
+ * '24:00:00' = เที่ยงคืนของวันถัดไป (HOSxP เก็บแบบนี้จริง)
+ */
+function dtExpr(col: string): string {
+  return `CASE
+      WHEN st.${col} IS NULL THEN NULL
+      WHEN st.${col} = '24:00:00'
+        THEN STR_TO_DATE(CONCAT(st.vstdate,' 00:00:00'),'%Y-%m-%d %H:%i:%s') + INTERVAL 1 DAY
+      ELSE STR_TO_DATE(CONCAT(st.vstdate,' ',st.${col}),'%Y-%m-%d %H:%i:%s')
+    END`;
+}
+
+// ─── query หลัก ───────────────────────────────────────────────────────────────
+
+interface QueueDbRow extends RowDataPacket {
+  vn: string;
+  hn: string;
+  queue: string | null;
+  patient_name: string | null;
+  pt_priority: number | null;
+  cur_dept: string | null;
+  status_name: string | null;
+  drug_items: number;
+  drug_qty: number | null;
+  stage: Stage;
+  time_str: string | null;
+  wait_min: number | null;
+}
+
+function buildQueueSql(): { sql: string; depParams: string[] } {
+  // กรองแผนกที่เรียกคิวเฉพาะจุดจ่ายยา ถ้าตั้ง PHARMACY_DEPCODES ไว้
+  const depFilter = PHARMACY_DEPCODES.length
+    ? `AND sc.sd_queue_calling_curdep IN (${PHARMACY_DEPCODES.map(() => "?").join(",")})`
+    : "";
+
+  // LIMIT bind ไม่ได้ใน prepared statement → ตรวจเป็นจำนวนเต็มบวกแล้วค่อยต่อ
+  const limit = Math.max(1, Math.trunc(ROW_LIMIT));
+
+  const sql = `
+    SELECT
+      o.vn,
+      o.hn,
+      COALESCE(o.oqueue, '')                        AS queue,
+      CONCAT_WS(' ', pt.pname, pt.fname, pt.lname)  AS patient_name,
+      IFNULL(o.pt_priority, 0)                      AS pt_priority,
+      COALESCE(kc.department, '')                   AS cur_dept,
+      COALESCE(os.name, '')                         AS status_name,
+      dr.drug_items,
+      dr.drug_qty,
+
+      -- ขั้นในห้องยา: ไล่จากขั้นท้ายสุดก่อน แถวหนึ่งได้ขั้นเดียวเสมอ
+      CASE
+        WHEN t.dt_receive_drug    IS NOT NULL THEN 'dispensed'
+        WHEN q.called_at          IS NOT NULL THEN 'calling'
+        WHEN t.dt_arrive_pharmacy IS NOT NULL THEN 'preparing'
+        ELSE 'incoming'
+      END AS stage,
+
+      -- เวลาอ้างอิงของแถว = ถึงห้องยา ถ้ายังไม่ถึงใช้เวลาตรวจเสร็จ
+      DATE_FORMAT(COALESCE(t.dt_arrive_pharmacy, t.dt_end_doctor), '%H:%i') AS time_str,
+
+      -- รอมากี่นาที: จบแล้วนับถึงเวลารับยา ยังไม่จบนับถึงตอนนี้
+      TIMESTAMPDIFF(
+        MINUTE,
+        COALESCE(t.dt_arrive_pharmacy, t.dt_end_doctor),
+        COALESCE(t.dt_receive_drug, NOW())
+      ) AS wait_min
+
+    FROM ovst o
+    INNER JOIN patient pt ON pt.hn = o.hn
+
+    -- มีรายการ "ยา" ในวันนั้นจริงเท่านั้นจึงเป็นงานของห้องยา (INNER = ไม่มียาก็ไม่ขึ้น)
+    INNER JOIN (
+      SELECT op.vn,
+             COUNT(*)                  AS drug_items,
+             SUM(COALESCE(op.qty, 0))  AS drug_qty
+      FROM opitemrece op
+      INNER JOIN drugitems di ON di.icode = op.icode
+      WHERE op.vstdate = ?
+      GROUP BY op.vn
+    ) dr ON dr.vn = o.vn
+
+    LEFT JOIN kskdepartment kc ON kc.depcode = o.cur_dep
+    LEFT JOIN ovstost       os ON os.ovstost = o.ovstost
+
+    LEFT JOIN (
+      SELECT
+        st.vn,
+        ${dtExpr("service12")} AS dt_end_doctor,
+        ${dtExpr("service6")}  AS dt_arrive_pharmacy,
+        ${dtExpr("service16")} AS dt_receive_drug
+      FROM service_time st
+      WHERE st.vstdate = ?
+    ) t ON t.vn = o.vn
+
+    -- เรียกคิวจุดจ่ายยาแล้วหรือยัง (เอาครั้งล่าสุดของ visit)
+    LEFT JOIN (
+      SELECT sc.sd_queue_calling_vn                AS vn,
+             MAX(sc.sd_queue_calling_datetime)     AS called_at
+      FROM sd_queue_calling sc
+      WHERE DATE(sc.sd_queue_calling_datetime) = ?
+        ${depFilter}
+      GROUP BY sc.sd_queue_calling_vn
+    ) q ON q.vn = o.vn
+
+    WHERE o.vstdate = ?
+      -- OPD เท่านั้น — คนที่ admit ไปแล้วไม่ใช่คิวห้องยา
+      -- เช็คทั้ง NULL และ '' เพราะ HOSxP บางรุ่นเก็บ an ของคนไม่ admit เป็นสตริงว่าง
+      -- ถ้าเช็คแค่ IS NULL แล้ว schema เป็นแบบหลัง จอจะว่างเปล่าโดยไม่มี error
+      AND (o.an IS NULL OR o.an = '')
+      -- ยังไม่ตรวจเสร็จ = ยังไม่ใช่งานห้องยา (กันทั้ง OPD ของวันขึ้นมาทั้งกอง)
+      AND (
+        t.dt_end_doctor      IS NOT NULL
+        OR t.dt_arrive_pharmacy IS NOT NULL
+        OR t.dt_receive_drug IS NOT NULL
+      )
+    ORDER BY COALESCE(t.dt_arrive_pharmacy, t.dt_end_doctor) ASC
+    LIMIT ${limit}
+  `;
+
+  return { sql, depParams: PHARMACY_DEPCODES };
+}
+
+const EMPTY_STAGES: Record<Stage, number> = {
+  incoming: 0,
+  preparing: 0,
+  calling: 0,
+  dispensed: 0,
+};
+const EMPTY_BASKETS: Record<Basket, number> = { few: 0, many: 0, urgent: 0 };
+
+/** สรุปตัวนับ + ห่อ payload — ใช้ร่วมกันทั้งข้อมูลจริงและข้อมูลตัวอย่าง */
+export function summarize(
+  rows: QueueRow[],
+  source: "live" | "demo",
+  date: string,
+): PharmacyQueueData {
+  const byStage = { ...EMPTY_STAGES };
+  const byBasket = { ...EMPTY_BASKETS };
+
+  for (const r of rows) {
+    byStage[r.stage]++;
+    // ตะกร้านับเฉพาะคนที่ยังไม่รับยา — คนรับยาไปแล้วไม่ใช่ภาระของห้องยาอีก
+    if (r.stage !== "dispensed") byBasket[r.basket]++;
+  }
+
+  return {
+    source,
+    updatedAt: new Date().toISOString(),
+    date,
+    rows,
+    byStage,
+    byBasket,
+    thresholds: {
+      manyItems: MANY_ITEMS_THRESHOLD,
+      urgentWaitMin: URGENT_WAIT_MIN,
+      refreshMs: REFRESH_MS,
+    },
+    hospitalName: HOSPITAL_NAME,
+  };
+}
+
+/**
+ * คิวห้องยาของวันที่กำหนด
+ * ยังไม่ได้ตั้ง env ฐานข้อมูล → คืนข้อมูลตัวอย่าง (source: "demo") แทนการ throw
+ * เพื่อให้เปิดดูหน้าจอ/พัฒนา UI ได้โดยไม่ต้องต่อ HOSxP จริง
+ */
+export async function getPharmacyQueue(
+  date: string = todayISO(),
+): Promise<PharmacyQueueData> {
+  assertDate(date);
+
+  const db = getDb();
+  if (!db) return summarize(demoQueue(date), "demo", date);
+
+  const { sql, depParams } = buildQueueSql();
+  // ลำดับ param ต้องตรงกับลำดับ ? ใน SQL:
+  //   1) opitemrece.vstdate  2) service_time.vstdate
+  //   3) วันที่ของ sd_queue_calling  4..n) depcode  n+1) ovst.vstdate
+  const params = [date, date, date, ...depParams, date];
+
+  const [dbRows] = await db.query<QueueDbRow[]>(sql, params);
+
+  const rows: QueueRow[] = dbRows.map((r) => {
+    const drugItems = int(r.drug_items);
+    const ptPriority = int(r.pt_priority);
+    return {
+      vn: str(r.vn),
+      hn: str(r.hn),
+      queue: str(r.queue),
+      name: str(r.patient_name) || str(r.hn),
+      basket: basketOf(drugItems, ptPriority),
+      stage: r.stage,
+      drugItems,
+      drugQty: int(r.drug_qty),
+      ptPriority,
+      timeStr: str(r.time_str),
+      // นาฬิกาเครื่อง DB กับเวลา checkpoint อาจเพี้ยนกันได้ — กันค่าติดลบไว้
+      waitMin: Math.max(0, int(r.wait_min)),
+      curDept: str(r.cur_dept),
+      statusName: str(r.status_name),
+    };
+  });
+
+  return summarize(rows, "live", date);
+}
+
+// ─── รายการยาของผู้ป่วย 1 คน ──────────────────────────────────────────────────
+
+/**
+ * คอลัมน์ของ drugitems ต่างกันได้ตามเวอร์ชัน HOSxP → ถามจาก information_schema ก่อน
+ * (แนวเดียวกับ ppc-hos-10667/lib/drugUsage.service.ts)
+ * ชื่อคอลัมน์ที่ต่อลง SQL เป็น literal ในไฟล์นี้เท่านั้น และต้องมีอยู่จริงเท่านั้น
+ */
+let drugCols: Set<string> | null = null;
+
+async function drugItemColumns(): Promise<Set<string>> {
+  if (drugCols) return drugCols;
+  const db = getDb();
+  if (!db) return (drugCols = new Set());
+  try {
+    const [rows] = await db.query<RowDataPacket[]>(
+      `SELECT LOWER(COLUMN_NAME) AS col
+         FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'drugitems'`,
+    );
+    drugCols = new Set(rows.map((r) => String(r.col)));
+  } catch {
+    drugCols = new Set();
+  }
+  return drugCols;
+}
+
+function pickCol(cols: Set<string>, candidates: string[]): string {
+  const col = candidates.find((c) => cols.has(c));
+  return col ? `COALESCE(di.${col}, '')` : `''`;
+}
+
+interface DrugLineRow extends RowDataPacket {
+  icode: string;
+  name: string | null;
+  strength: string | null;
+  units: string | null;
+  qty: number | null;
+}
+
+/** บรรทัดยาทั้งหมดของ visit หนึ่ง — ใช้ในหน้าต่างรายละเอียดของเภสัชกร */
+export async function getDrugLines(
+  vn: string,
+  date: string = todayISO(),
+): Promise<DrugLine[]> {
+  assertDate(date);
+  const db = getDb();
+  // ยังไม่ต่อฐานข้อมูล → คืนรายการยาตัวอย่างให้ตรงกับคิวตัวอย่างที่แสดงอยู่
+  if (!db) return demoDrugLines(vn);
+
+  const cols = await drugItemColumns();
+  const nameExpr = `COALESCE(NULLIF(${pickCol(cols, ["name"])}, ''), op.icode)`;
+  const strengthExpr = pickCol(cols, ["strength"]);
+  const unitsExpr = pickCol(cols, ["units", "unit"]);
+
+  const [rows] = await db.query<DrugLineRow[]>(
+    `
+    SELECT
+      op.icode                 AS icode,
+      MAX(${nameExpr})         AS name,
+      MAX(${strengthExpr})     AS strength,
+      MAX(${unitsExpr})        AS units,
+      SUM(COALESCE(op.qty, 0)) AS qty
+    FROM opitemrece op
+    INNER JOIN drugitems di ON di.icode = op.icode
+    WHERE op.vn = ? AND op.vstdate = ?
+    -- group แค่ icode แล้วห่อคอลัมน์อื่นด้วย MAX — ชื่อ alias ซ้ำกับคอลัมน์จริงของ
+    -- drugitems (name/units) ถ้าเอาไปใส่ GROUP BY/ORDER BY ตรง ๆ จะกำกวม
+    GROUP BY op.icode
+    ORDER BY 2
+  `,
+    [vn, date],
+  );
+
+  return rows.map((r) => ({
+    icode: str(r.icode),
+    name: str(r.name),
+    strength: str(r.strength),
+    units: str(r.units),
+    qty: int(r.qty),
+  }));
+}
