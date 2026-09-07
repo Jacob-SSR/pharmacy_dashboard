@@ -1,0 +1,2 @@
+# กันไม่ให้ public/ หายไปตอน clone (Dockerfile มี COPY /app/public)
+# วางโลโก้ รพ. หรือไฟล์ static อื่นไว้ที่นี่ได้
