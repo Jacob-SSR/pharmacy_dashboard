@@ -221,6 +221,10 @@ function buildQueueSql(): { sql: string; depParams: string[] } {
         o.cur_dep IN (${deps})
         -- getMedicineQ.php: ถูกเรียกคิวที่จุดจ่ายยาในวันนั้น
         OR q.called_at IS NOT NULL
+        -- เคยผ่านห้องยามาแล้ว แต่ตอนนี้ HOSxP ย้าย cur_dep ไปที่อื่น = จ่ายยาเสร็จแล้ว
+        -- ถ้าไม่มีข้อนี้ "รับยาแล้ว" จะเป็น 0 ตลอด เพราะพอจ่ายเสร็จคนจะหลุดจาก query ไปเลย
+        -- (แนวเดียวกับ ppc-hos-10667/lib/deptStatus.service.ts ที่นับทั้ง cur_dep และ last_dep)
+        OR o.last_dep IN (${deps})
       )
     ORDER BY o.cur_dep_time ASC
     LIMIT ${limit}
@@ -286,8 +290,8 @@ export async function getPharmacyQueue(
   //   1) opitemrece.vstdate
   //   2) วันที่ของ sd_queue_calling   3..n) depcode ของ sd_queue_calling
   //   n+1) service_time.vstdate       n+2) ovst.vstdate
-  //   n+3.. ) depcode ของเงื่อนไข o.cur_dep IN (...)
-  const params = [date, date, ...depParams, date, date, ...depParams];
+  //   n+3..) depcode ของ o.cur_dep IN (...)   สุดท้าย) depcode ของ o.last_dep IN (...)
+  const params = [date, date, ...depParams, date, date, ...depParams, ...depParams];
 
   const [dbRows] = await db.query<QueueDbRow[]>(sql, params);
 
