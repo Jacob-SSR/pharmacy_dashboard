@@ -48,7 +48,7 @@ export const REFRESH_MS = num(process.env.PHARMACY_REFRESH_MS, 30_000);
 export const ROW_LIMIT = num(process.env.PHARMACY_ROW_LIMIT, 500);
 
 export const HOSPITAL_NAME =
-  process.env.PHARMACY_HOSPITAL_NAME ?? "โรงพยาบาลปากพลี";
+  process.env.PHARMACY_HOSPITAL_NAME ?? "โรงพยาบาลพลับพลาชัย";
 
 /** จัดตะกร้าจากจำนวนรายการยา + ธงเร่งด่วนของ visit */
 export function basketOf(drugItems: number, ptPriority: number): Basket {
