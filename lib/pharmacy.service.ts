@@ -248,7 +248,8 @@ export function summarize(
   for (const r of rows) {
     byStage[r.stage]++;
     // ตะกร้านับเฉพาะคนที่ยังไม่รับยา — คนรับยาไปแล้วไม่ใช่ภาระของห้องยาอีก
-    if (r.stage !== "dispensed") byBasket[r.basket]++;
+    // และข้ามคนที่ยังไม่มีใบสั่งยา (basket = null) ไม่งั้นตัวเลขตะกร้าเฟ้อ
+    if (r.stage !== "dispensed" && r.basket) byBasket[r.basket]++;
   }
 
   return {

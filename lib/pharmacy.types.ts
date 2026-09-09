@@ -21,7 +21,8 @@ export interface QueueRow {
   queue: string;
   /** ชื่อ-นามสกุลเต็ม — จอนี้ให้เภสัชกรดูเท่านั้น จึงไม่ปิดบังนามสกุล */
   name: string;
-  basket: Basket;
+  /** null = ยังไม่มีใบสั่งยาในระบบ (ยืนอยู่ห้องยาแต่ยังไม่ได้ลงรายการ) — ไม่นับเข้าตะกร้า */
+  basket: Basket | null;
   stage: Stage;
   /** จำนวนรายการยาของ visit นี้ (นับบรรทัดใน opitemrece ที่เป็นยา) */
   drugItems: number;

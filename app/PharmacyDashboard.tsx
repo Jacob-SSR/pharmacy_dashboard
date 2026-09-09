@@ -38,6 +38,8 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const DESK_PAGE_SIZE = 8;
 
 const BASKET_ORDER: Record<Basket, number> = { urgent: 0, many: 1, few: 2 };
+/** ยังไม่มีใบสั่งยา (null) ให้ไปอยู่ท้ายสุดเวลาเรียงตามตะกร้า */
+const bkOrder = (b: Basket | null) => (b === null ? 99 : BASKET_ORDER[b]);
 const STAGE_ORDER = Object.fromEntries(STAGE_SEQ.map((s, i) => [s, i])) as Record<Stage, number>;
 
 /** เผื่อ TV ตั้งในมุมที่ผู้ป่วยมองเห็น — เหลือแค่อักษรแรกของนามสกุล */
@@ -91,7 +93,9 @@ const I = {
 
 // ─── ชิ้นส่วนย่อย ─────────────────────────────────────────────────────────────
 
-function BasketTag({ basket }: { basket: Basket }) {
+function BasketTag({ basket }: { basket: Basket | null }) {
+  // ยืนอยู่ห้องยาแต่ใบสั่งยายังไม่ลงระบบ — ยังไม่มีอะไรให้จัดตะกร้า
+  if (!basket) return <span className="col-id">ยังไม่มีใบสั่งยา</span>;
   const m = BASKET_META[basket];
   return <span className={`tag ${m.cls}`}>{m.icon} {m.label}</span>;
 }
@@ -345,7 +349,7 @@ export default function PharmacyDashboard({
       switch (sortKey) {
         case "wait":   return dir * (a.waitMin - b.waitMin);
         case "items":  return dir * (a.drugItems - b.drugItems);
-        case "basket": return dir * (BASKET_ORDER[a.basket] - BASKET_ORDER[b.basket]);
+        case "basket": return dir * (bkOrder(a.basket) - bkOrder(b.basket));
         case "stage":  return dir * (STAGE_ORDER[a.stage] - STAGE_ORDER[b.stage]);
         case "pttype": return dir * cmp(a.pttype, b.pttype);
         case "time":   return dir * cmp(a.timeStr, b.timeStr);

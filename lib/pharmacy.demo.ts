@@ -39,6 +39,8 @@ const SEEDS: Seed[] = [
   { hn: "01130", name: "นางรวีวรรณ งามสง่า", items: 4, priority: 0, agoMin: 5, stage: "waiting" , pttype: "ชำระเงินเอง" },
   { hn: "03550", name: "นายนพดล ตั้งมั่น", items: 2, priority: 0, agoMin: 3, stage: "waiting" , pttype: "ข้าราชการ" },
   { hn: "02100", name: "นางสาวกวินทรา ใสบริสุทธิ์", items: 3, priority: 1, agoMin: 1, stage: "waiting" , pttype: "บัตรทอง" },
+  // เคสที่ต้องไม่ไปโผล่ในตัวเลขตะกร้า: ยืนอยู่ห้องยาแล้วแต่ใบสั่งยายังไม่ถูกลงในระบบ
+  { hn: "01777", name: "นายกิตติชัย พร้อมมูล", items: 0, priority: 0, agoMin: 2, stage: "waiting", pttype: "บัตรทอง" },
 ];
 
 /** คิวตัวอย่างของวันที่กำหนด — เวลาเลื่อนตามนาฬิกาจริงเพื่อให้ "เวลารอ" ดูสมจริง */

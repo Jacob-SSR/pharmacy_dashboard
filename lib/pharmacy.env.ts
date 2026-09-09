@@ -54,8 +54,16 @@ export const ROW_LIMIT = num(process.env.PHARMACY_ROW_LIMIT, 500);
  */
 export const HOSPITAL_NAME = "โรงพยาบาลพลับพลาชัย";
 
-/** จัดตะกร้าจากจำนวนรายการยา + ธงเร่งด่วนของ visit */
-export function basketOf(drugItems: number, ptPriority: number): Basket {
+/**
+ * จัดตะกร้าจากจำนวนรายการยา + ธงเร่งด่วนของ visit
+ *
+ * ไม่มีรายการยาเลย = คืน null ไม่ใช่ "ยาน้อย"
+ * ตั้งแต่เปลี่ยนมาคัดคนเข้าคิวตาม getScreeningW.php (ยืนอยู่ห้องยา = ขึ้นจอ)
+ * คนที่ใบสั่งยายังไม่ถูกลงในระบบจะมี drugItems = 0 ถ้าปล่อยให้ตกเป็น "ยาน้อย"
+ * ตัวเลขตะกร้าจะเฟ้อ ทั้งที่ยังไม่มีอะไรให้จัด — ซึ่งเป็นตัวเลขหลักของจอนี้
+ */
+export function basketOf(drugItems: number, ptPriority: number): Basket | null {
+  if (drugItems <= 0) return null;
   if (ptPriority > 0) return "urgent";
   return drugItems >= MANY_ITEMS_THRESHOLD ? "many" : "few";
 }
