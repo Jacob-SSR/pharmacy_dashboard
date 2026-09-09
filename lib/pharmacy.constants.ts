@@ -5,46 +5,32 @@
 import type { Basket, Stage } from "./pharmacy.types";
 
 // ─── ลำดับขั้นในห้องยา ────────────────────────────────────────────────────────
-// ทุกขั้นมาจาก checkpoint ที่ HOSxP บันทึกไว้จริง (ดูรายละเอียดใน pharmacy.service.ts)
-//   service12 = ตรวจเสร็จ (แพทย์)  → ใบสั่งยาเข้าห้องยา
-//   service6  = ถึงห้องยา           → กำลังจัด/ตรวจสอบยา
-//   sd_queue_calling = ถูกเรียกคิวที่จุดจ่ายยา
-//   service16 = รับยาแล้ว           → จบ
-export const STAGE_SEQ: readonly Stage[] = [
-  "incoming",
-  "preparing",
-  "calling",
-  "dispensed",
-];
+// ยึดตามสคริปต์ที่โรงพยาบาลใช้จริง ไม่ได้คิดขั้นเพิ่มเอง
+//   getScreeningW.php  คนที่ยังรอ  = ovst.cur_dep อยู่ห้องยา และยังไม่ถูกเรียก
+//   getMedicineQ.php   คนที่เรียกแล้ว = มีแถวใน sd_queue_calling ของจุดจ่ายยาวันนี้
+export const STAGE_SEQ: readonly Stage[] = ["waiting", "calling", "dispensed"];
 
 export const STAGE_META: Record<
   Stage,
   { label: string; sub: string; num: string; pulse: boolean; cls: string }
 > = {
-  incoming: {
-    label: "ใบสั่งยาเข้า",
-    sub: "ตรวจเสร็จแล้ว ยังไม่ถึงห้องยา",
+  waiting: {
+    label: "รอเรียกคิว",
+    sub: "อยู่ที่ห้องยา ยังไม่ถูกเรียก",
     num: "1",
     pulse: false,
     cls: "st-1",
   },
-  preparing: {
-    label: "จัดยา",
-    sub: "ถึงห้องยาแล้ว กำลังจัด/ตรวจสอบ",
-    num: "2",
-    pulse: true,
-    cls: "st-2",
-  },
   calling: {
-    label: "เรียกรับยา",
+    label: "เรียกแล้ว",
     sub: "เรียกคิวที่จุดจ่ายยาแล้ว",
-    num: "3",
+    num: "2",
     pulse: true,
     cls: "st-3",
   },
   dispensed: {
     label: "รับยาแล้ว",
-    sub: "เสร็จสิ้น",
+    sub: "เสร็จสิ้น / ออกจากห้องยา",
     num: "✓",
     pulse: false,
     cls: "st-5",

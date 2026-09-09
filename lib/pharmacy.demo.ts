@@ -30,15 +30,15 @@ const SEEDS: Seed[] = [
   { hn: "04010", name: "นางสมหมาย เข้มแข็ง", items: 8, priority: 0, agoMin: 34, stage: "calling" , pttype: "ข้าราชการ" },
   { hn: "01880", name: "นายวีรพงษ์ สุขสันต์", items: 5, priority: 2, agoMin: 27, stage: "calling" , pttype: "บัตรทอง" },
   { hn: "03200", name: "นางชนาภา ดีงาม", items: 2, priority: 0, agoMin: 22, stage: "calling" , pttype: "ประกันสังคม" },
-  { hn: "00770", name: "นายประพัฒน์ มั่นใจ", items: 9, priority: 0, agoMin: 25, stage: "preparing" , pttype: "เบิกจ่ายตรง" },
-  { hn: "02550", name: "นางสาวจิตรา ร่าเริง", items: 3, priority: 0, agoMin: 19, stage: "preparing" , pttype: "ชำระเงินเอง" },
-  { hn: "01660", name: "นางลำดวน ดวงดี", items: 4, priority: 1, agoMin: 16, stage: "preparing" , pttype: "ข้าราชการ" },
-  { hn: "03800", name: "เด็กชายภาสกร จิตใจดี", items: 5, priority: 0, agoMin: 12, stage: "preparing" , pttype: "บัตรทอง" },
-  { hn: "00440", name: "นางสาวธัญพร สว่างจิต", items: 1, priority: 0, agoMin: 9, stage: "preparing" , pttype: "ประกันสังคม" },
-  { hn: "02980", name: "นายอธิป คิดดี", items: 6, priority: 3, agoMin: 7, stage: "preparing" , pttype: "เบิกจ่ายตรง" },
-  { hn: "01130", name: "นางรวีวรรณ งามสง่า", items: 4, priority: 0, agoMin: 5, stage: "incoming" , pttype: "ชำระเงินเอง" },
-  { hn: "03550", name: "นายนพดล ตั้งมั่น", items: 2, priority: 0, agoMin: 3, stage: "incoming" , pttype: "ข้าราชการ" },
-  { hn: "02100", name: "นางสาวกวินทรา ใสบริสุทธิ์", items: 3, priority: 1, agoMin: 1, stage: "incoming" , pttype: "บัตรทอง" },
+  { hn: "00770", name: "นายประพัฒน์ มั่นใจ", items: 9, priority: 0, agoMin: 25, stage: "waiting" , pttype: "เบิกจ่ายตรง" },
+  { hn: "02550", name: "นางสาวจิตรา ร่าเริง", items: 3, priority: 0, agoMin: 19, stage: "waiting" , pttype: "ชำระเงินเอง" },
+  { hn: "01660", name: "นางลำดวน ดวงดี", items: 4, priority: 1, agoMin: 16, stage: "waiting" , pttype: "ข้าราชการ" },
+  { hn: "03800", name: "เด็กชายภาสกร จิตใจดี", items: 5, priority: 0, agoMin: 12, stage: "waiting" , pttype: "บัตรทอง" },
+  { hn: "00440", name: "นางสาวธัญพร สว่างจิต", items: 1, priority: 0, agoMin: 9, stage: "waiting" , pttype: "ประกันสังคม" },
+  { hn: "02980", name: "นายอธิป คิดดี", items: 6, priority: 3, agoMin: 7, stage: "waiting" , pttype: "เบิกจ่ายตรง" },
+  { hn: "01130", name: "นางรวีวรรณ งามสง่า", items: 4, priority: 0, agoMin: 5, stage: "waiting" , pttype: "ชำระเงินเอง" },
+  { hn: "03550", name: "นายนพดล ตั้งมั่น", items: 2, priority: 0, agoMin: 3, stage: "waiting" , pttype: "ข้าราชการ" },
+  { hn: "02100", name: "นางสาวกวินทรา ใสบริสุทธิ์", items: 3, priority: 1, agoMin: 1, stage: "waiting" , pttype: "บัตรทอง" },
 ];
 
 /** คิวตัวอย่างของวันที่กำหนด — เวลาเลื่อนตามนาฬิกาจริงเพื่อให้ "เวลารอ" ดูสมจริง */
@@ -62,8 +62,8 @@ export function demoQueue(date: string): QueueRow[] {
       timeStr: `${pad(at.getHours())}:${pad(at.getMinutes())}`,
       waitMin: s.agoMin,
       pttype: s.pttype,
-      curDeptCode: s.stage === "incoming" ? "011" : "051",
-      curDept: s.stage === "incoming" ? "คลินิกอายุรกรรม" : "ห้องยาผู้ป่วยนอก",
+      curDeptCode: "051",
+      curDept: "ห้องยาผู้ป่วยนอก",
       statusName: s.stage === "dispensed" ? "รับยาแล้ว" : "รอรับยา",
     } satisfies QueueRow;
   });

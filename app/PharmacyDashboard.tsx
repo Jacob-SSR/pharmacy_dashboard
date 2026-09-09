@@ -478,8 +478,7 @@ export default function PharmacyDashboard({
           <div className="kpis">
             {STAGE_SEQ.map((stage) => {
               const m = STAGE_META[stage];
-              const icon = stage === "incoming" ? I.users
-                : stage === "preparing" ? I.glass
+              const icon = stage === "waiting" ? I.users
                 : stage === "calling" ? I.phone : I.check;
               const active = !isTv && stageFilter === stage;
               return (

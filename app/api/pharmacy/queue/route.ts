@@ -18,11 +18,12 @@ export async function GET(req: Request) {
   } catch (err) {
     // ข้อความจาก DB อาจมีชื่อ host/schema ปนมา — log ฝั่ง server พอ ไม่ส่งออกไป
     console.error("[pharmacy/queue]", err);
-    const message =
-      err instanceof Error && err.message.startsWith("รูปแบบวันที่")
-        ? err.message
-        : "ดึงข้อมูลคิวห้องยาไม่สำเร็จ";
-    const status = message.startsWith("รูปแบบวันที่") ? 400 : 500;
-    return NextResponse.json({ message }, { status });
+    // ข้อความ 2 ประเภทนี้ผู้ดูแลระบบต้องเห็นเพื่อไปแก้ต่อ จึงส่งออกไปตรง ๆ
+    // ที่เหลืออาจมีชื่อ host/schema ปนมา → ตอบข้อความกลาง ๆ แล้ว log ไว้ฝั่ง server พอ
+    const raw = err instanceof Error ? err.message : "";
+    const isBadDate = raw.startsWith("รูปแบบวันที่");
+    const isMisconfig = raw.startsWith("ยังไม่ได้ตั้ง");
+    const message = isBadDate || isMisconfig ? raw : "ดึงข้อมูลคิวห้องยาไม่สำเร็จ";
+    return NextResponse.json({ message }, { status: isBadDate ? 400 : 500 });
   }
 }

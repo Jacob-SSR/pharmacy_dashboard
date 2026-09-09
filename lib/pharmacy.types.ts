@@ -5,8 +5,13 @@
 /** ตะกร้ายา — HOSxP ไม่มีฟิลด์นี้ คำนวณจากจำนวนรายการยา + ธงเร่งด่วน */
 export type Basket = "few" | "many" | "urgent";
 
-/** ขั้นในห้องยา — ทุกค่ามาจาก checkpoint จริงใน HOSxP (ดู pharmacy.service.ts) */
-export type Stage = "incoming" | "preparing" | "calling" | "dispensed";
+/**
+ * ขั้นในห้องยา — ยึดตามสคริปต์ที่โรงพยาบาลใช้จริง
+ *   waiting   อยู่ที่ห้องยา (ovst.cur_dep) แต่ยังไม่ถูกเรียก — ตาม getScreeningW.php
+ *   calling   ถูกเรียกคิวที่จุดจ่ายยาแล้ว — ตาม getMedicineQ.php
+ *   dispensed รับยาแล้ว / ออกจากห้องยาแล้ว
+ */
+export type Stage = "waiting" | "calling" | "dispensed";
 
 export interface QueueRow {
   /** คีย์ของแถว = vn (unique ต่อ visit) */
@@ -24,7 +29,7 @@ export interface QueueRow {
   drugQty: number;
   /** ธงเร่งด่วนของ visit (ovst.pt_priority) — 0 = ปกติ */
   ptPriority: number;
-  /** "HH:mm" เวลาอ้างอิงของแถว = ถึงห้องยา ถ้ายังไม่ถึงใช้เวลาตรวจเสร็จ */
+  /** "HH:mm" เวลาที่เข้ามาอยู่แผนกปัจจุบัน (ovst.cur_dep_time) */
   timeStr: string;
   /** นาทีที่รออยู่ ณ ตอนที่ query (นับถึงตอนนี้ หรือถึงเวลารับยาถ้าจบแล้ว) */
   waitMin: number;

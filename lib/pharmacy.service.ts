@@ -124,10 +124,13 @@ interface QueueDbRow extends RowDataPacket {
 }
 
 function buildQueueSql(): { sql: string; depParams: string[] } {
-  // กรองแผนกที่เรียกคิวเฉพาะจุดจ่ายยา ถ้าตั้ง PHARMACY_DEPCODES ไว้
-  const depFilter = PHARMACY_DEPCODES.length
-    ? `AND sc.sd_queue_calling_curdep IN (${PHARMACY_DEPCODES.map(() => "?").join(",")})`
-    : "";
+  // depcode ของจุดจ่ายยาเป็นหัวใจของทั้งสองสคริปต์ต้นทาง — ไม่มีก็ query ไม่ได้
+  if (PHARMACY_DEPCODES.length === 0) {
+    throw new Error(
+      "ยังไม่ได้ตั้ง PHARMACY_DEPCODES — ต้องใส่ depcode ของจุดจ่ายยา (kskdepartment.depcode) คั่นด้วย comma",
+    );
+  }
+  const deps = PHARMACY_DEPCODES.map(() => "?").join(",");
 
   // LIMIT bind ไม่ได้ใน prepared statement → ตรวจเป็นจำนวนเต็มบวกแล้วค่อยต่อ
   const limit = Math.max(1, Math.trunc(ROW_LIMIT));
@@ -137,38 +140,49 @@ function buildQueueSql(): { sql: string; depParams: string[] } {
       o.vn,
       o.hn,
       COALESCE(o.oqueue, '')                        AS queue,
-      CONCAT_WS(' ', pt.pname, pt.fname, pt.lname)  AS patient_name,
+      -- ชื่อเต็มแบบเดียวกับ getMedicineQ.php (จอห้องยาไม่ปิดบังนามสกุล
+      -- ต่างจาก getScreeningQ/getDoctorRoomQ ที่แทนนามสกุลด้วย 'XXX')
+      CONCAT(pt.pname, pt.fname, ' ', pt.lname)     AS patient_name,
       IFNULL(o.pt_priority, 0)                      AS pt_priority,
       COALESCE(o.cur_dep, '')                       AS cur_dep_code,
       COALESCE(kc.department, '')                   AS cur_dept,
       COALESCE(os.name, '')                         AS status_name,
       COALESCE(ptt.name, '')                        AS pttype_name,
-      dr.drug_items,
-      dr.drug_qty,
+      COALESCE(dr.drug_items, 0)                    AS drug_items,
+      COALESCE(dr.drug_qty, 0)                      AS drug_qty,
 
-      -- ขั้นในห้องยา: ไล่จากขั้นท้ายสุดก่อน แถวหนึ่งได้ขั้นเดียวเสมอ
+      -- ขั้นในห้องยา — ไล่จากขั้นท้ายสุดก่อน แถวหนึ่งได้ขั้นเดียวเสมอ
       CASE
-        WHEN t.dt_receive_drug    IS NOT NULL THEN 'dispensed'
-        WHEN q.called_at          IS NOT NULL THEN 'calling'
-        WHEN t.dt_arrive_pharmacy IS NOT NULL THEN 'preparing'
-        ELSE 'incoming'
+        WHEN t.dt_receive_drug IS NOT NULL THEN 'dispensed'
+        -- เงื่อนไข "ถูกเรียกแล้ว" กลับด้านมาจาก getScreeningW.php ที่นับคนยังรอด้วย
+        --   (o.cur_dep_time >= TIME(sc.sd_queue_calling_datetime) OR ... IS NULL)
+        -- ดังนั้น "เรียกแล้ว" = มีการเรียก และเรียกหลังจากที่เข้ามาอยู่แผนกนี้
+        WHEN q.called_at IS NOT NULL
+             AND TIME(q.called_at) > o.cur_dep_time THEN 'calling'
+        ELSE 'waiting'
       END AS stage,
 
-      -- เวลาอ้างอิงของแถว = ถึงห้องยา ถ้ายังไม่ถึงใช้เวลาตรวจเสร็จ
-      DATE_FORMAT(COALESCE(t.dt_arrive_pharmacy, t.dt_end_doctor), '%H:%i') AS time_str,
+      DATE_FORMAT(o.cur_dep_time, '%H:%i')          AS time_str,
 
-      -- รอมากี่นาที: จบแล้วนับถึงเวลารับยา ยังไม่จบนับถึงตอนนี้
+      -- รอมากี่นาที: นับจากเวลาที่เข้ามาอยู่แผนกนี้ จนถึงเวลารับยา (ถ้าจบแล้ว) หรือถึงตอนนี้
       TIMESTAMPDIFF(
         MINUTE,
-        COALESCE(t.dt_arrive_pharmacy, t.dt_end_doctor),
+        STR_TO_DATE(CONCAT(o.vstdate, ' ', o.cur_dep_time), '%Y-%m-%d %H:%i:%s'),
         COALESCE(t.dt_receive_drug, NOW())
       ) AS wait_min
 
     FROM ovst o
     INNER JOIN patient pt ON pt.hn = o.hn
 
-    -- มีรายการ "ยา" ในวันนั้นจริงเท่านั้นจึงเป็นงานของห้องยา (INNER = ไม่มียาก็ไม่ขึ้น)
-    INNER JOIN (
+    LEFT JOIN kskdepartment kc ON kc.depcode = o.cur_dep
+    LEFT JOIN ovstost       os ON os.ovstost = o.ovstost
+    -- สิทธิการรักษา: vn_stat เป็นตารางสรุปที่อาจยังไม่มีแถวของ visit ที่ยังไม่ปิด
+    -- จึงเอา ovst.pttype ก่อน แล้วค่อย fallback ไป vn_stat
+    LEFT JOIN vn_stat       vs  ON vs.vn = o.vn
+    LEFT JOIN pttype        ptt ON ptt.pttype = COALESCE(o.pttype, vs.pttype)
+
+    -- จำนวนรายการยา (ใช้จัดตะกร้า) — ส่วนนี้ไม่มีในสคริปต์เดิม เป็นของจอนี้เอง
+    LEFT JOIN (
       SELECT op.vn,
              COUNT(*)                  AS drug_items,
              SUM(COALESCE(op.qty, 0))  AS drug_qty
@@ -178,45 +192,37 @@ function buildQueueSql(): { sql: string; depParams: string[] } {
       GROUP BY op.vn
     ) dr ON dr.vn = o.vn
 
-    LEFT JOIN kskdepartment kc ON kc.depcode = o.cur_dep
-    LEFT JOIN ovstost       os ON os.ovstost = o.ovstost
-    -- สิทธิการรักษา: vn_stat เป็นตารางสรุปที่อาจยังไม่มีแถวของ visit ที่ยังไม่ปิด
-    -- จึงเอา ovst.pttype มาก่อน แล้วค่อย fallback ไป vn_stat
-    LEFT JOIN vn_stat       vs  ON vs.vn = o.vn
-    LEFT JOIN pttype        ptt ON ptt.pttype = COALESCE(o.pttype, vs.pttype)
+    -- การเรียกคิวที่จุดจ่ายยา — เงื่อนไขเดียวกับ getMedicineQ.php
+    --   sd_queue_calling_curdep IN (depcode) AND DATE(sd_queue_calling_datetime) = วันนั้น
+    LEFT JOIN (
+      SELECT sc.sd_queue_calling_vn            AS vn,
+             MAX(sc.sd_queue_calling_datetime) AS called_at
+      FROM sd_queue_calling sc
+      WHERE DATE(sc.sd_queue_calling_datetime) = ?
+        AND sc.sd_queue_calling_curdep IN (${deps})
+      GROUP BY sc.sd_queue_calling_vn
+    ) q ON q.vn = o.vn
 
+    -- เวลารับยาจาก service_time (service16) — ใช้ปิดงานเท่านั้น ไม่ได้ใช้คัดคนเข้าคิว
     LEFT JOIN (
       SELECT
         st.vn,
-        ${dtExpr("service12")} AS dt_end_doctor,
-        ${dtExpr("service6")}  AS dt_arrive_pharmacy,
         ${dtExpr("service16")} AS dt_receive_drug
       FROM service_time st
       WHERE st.vstdate = ?
     ) t ON t.vn = o.vn
 
-    -- เรียกคิวจุดจ่ายยาแล้วหรือยัง (เอาครั้งล่าสุดของ visit)
-    LEFT JOIN (
-      SELECT sc.sd_queue_calling_vn                AS vn,
-             MAX(sc.sd_queue_calling_datetime)     AS called_at
-      FROM sd_queue_calling sc
-      WHERE DATE(sc.sd_queue_calling_datetime) = ?
-        ${depFilter}
-      GROUP BY sc.sd_queue_calling_vn
-    ) q ON q.vn = o.vn
-
     WHERE o.vstdate = ?
-      -- OPD เท่านั้น — คนที่ admit ไปแล้วไม่ใช่คิวห้องยา
-      -- เช็คทั้ง NULL และ '' เพราะ HOSxP บางรุ่นเก็บ an ของคนไม่ admit เป็นสตริงว่าง
-      -- ถ้าเช็คแค่ IS NULL แล้ว schema เป็นแบบหลัง จอจะว่างเปล่าโดยไม่มี error
+      -- OPD เท่านั้น — เช็คทั้ง NULL และ '' เพราะ HOSxP บางรุ่นเก็บ an ของคนไม่ admit
+      -- เป็นสตริงว่าง ถ้าเช็คแค่ IS NULL แล้ว schema เป็นแบบหลัง จอจะว่างเปล่าโดยไม่มี error
       AND (o.an IS NULL OR o.an = '')
-      -- ยังไม่ตรวจเสร็จ = ยังไม่ใช่งานห้องยา (กันทั้ง OPD ของวันขึ้นมาทั้งกอง)
       AND (
-        t.dt_end_doctor      IS NOT NULL
-        OR t.dt_arrive_pharmacy IS NOT NULL
-        OR t.dt_receive_drug IS NOT NULL
+        -- getScreeningW.php: ตอนนี้อยู่ที่ห้องยา
+        o.cur_dep IN (${deps})
+        -- getMedicineQ.php: ถูกเรียกคิวที่จุดจ่ายยาในวันนั้น
+        OR q.called_at IS NOT NULL
       )
-    ORDER BY COALESCE(t.dt_arrive_pharmacy, t.dt_end_doctor) ASC
+    ORDER BY o.cur_dep_time ASC
     LIMIT ${limit}
   `;
 
@@ -224,8 +230,7 @@ function buildQueueSql(): { sql: string; depParams: string[] } {
 }
 
 const EMPTY_STAGES: Record<Stage, number> = {
-  incoming: 0,
-  preparing: 0,
+  waiting: 0,
   calling: 0,
   dispensed: 0,
 };
@@ -277,9 +282,11 @@ export async function getPharmacyQueue(
 
   const { sql, depParams } = buildQueueSql();
   // ลำดับ param ต้องตรงกับลำดับ ? ใน SQL:
-  //   1) opitemrece.vstdate  2) service_time.vstdate
-  //   3) วันที่ของ sd_queue_calling  4..n) depcode  n+1) ovst.vstdate
-  const params = [date, date, date, ...depParams, date];
+  //   1) opitemrece.vstdate
+  //   2) วันที่ของ sd_queue_calling   3..n) depcode ของ sd_queue_calling
+  //   n+1) service_time.vstdate       n+2) ovst.vstdate
+  //   n+3.. ) depcode ของเงื่อนไข o.cur_dep IN (...)
+  const params = [date, date, ...depParams, date, date, ...depParams];
 
   const [dbRows] = await db.query<QueueDbRow[]>(sql, params);
 
@@ -297,11 +304,9 @@ export async function getPharmacyQueue(
         // HOSxP ปิด visit / ย้ายไปจุดออก (กลับบ้าน, จำหน่าย, admit, refer ...)
         isFinishedLabel(statusName) ||
         isFinishedLabel(curDept) ||
-        // เคยถึงห้องยาแล้ว แต่ตอนนี้ cur_dep ไม่ใช่ห้องยาแล้ว = ห้องยาจ่ายเสร็จส่งต่อไป
-        (stage !== "incoming" &&
-          PHARMACY_DEPCODES.length > 0 &&
-          curDeptCode !== "" &&
-          !PHARMACY_DEPCODES.includes(curDeptCode));
+        // ตอนนี้ cur_dep ไม่ใช่ห้องยาแล้ว = ห้องยาจ่ายเสร็จแล้วส่งต่อไป
+        // (แถวนี้ติดมาได้เพราะเคยถูกเรียกคิวที่ห้องยาวันนี้ — ตาม getMedicineQ.php)
+        (curDeptCode !== "" && !PHARMACY_DEPCODES.includes(curDeptCode));
       if (leftPharmacy) stage = "dispensed";
     }
 

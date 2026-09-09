@@ -75,7 +75,7 @@ HOSxP ไม่มีฟิลด์ "ตะกร้า" — คำนวณจ
 | `DB_HOST` | ✅ | — | HOSxP MySQL |
 | `DB_PORT` | | `3306` | |
 | `DB_USER` `DB_PASS` `DB_NAME` | ✅ | — | ใช้ผู้ใช้สิทธิ์ **SELECT อย่างเดียว** |
-| `PHARMACY_DEPCODES` | | (ว่าง) | depcode จุดจ่ายยา คั่นด้วย comma — ใช้กรอง `sd_queue_calling` ว่างไว้ = นับทุกจุดเรียกคิว |
+| `PHARMACY_DEPCODES` | ✅ | — | depcode จุดจ่ายยา คั่นด้วย comma — ค่าเดียวกับที่ส่งเข้า `getMedicineQ.php` เดิม |
 | `PHARMACY_MANY_ITEMS` | | `4` | รายการยาตั้งแต่เท่านี้ = ตะกร้ายามาก |
 | `PHARMACY_URGENT_WAIT_MIN` | | `20` | รอเกินกี่นาทีจึงเตือน |
 | `PHARMACY_REFRESH_MS` | | `30000` | จอดึงข้อมูลใหม่ทุกกี่ ms |

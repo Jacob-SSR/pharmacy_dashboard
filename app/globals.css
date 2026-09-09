@@ -154,7 +154,7 @@ body {
 .main { flex: 1; min-width: 0; padding: 20px 26px 28px; display: flex; flex-direction: column; gap: 15px; }
 
 /* ── การ์ด KPI ─────────────────────────────────────────────────────────────── */
-.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+.kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
 .kpi {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 17px 19px;
@@ -452,7 +452,7 @@ tbody tr:last-child td { border-bottom: none; }
 }
 
 /* ── จอแคบ ────────────────────────────────────────────────────────────────── */
-@media (max-width: 1250px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 1150px) { .kpis { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 1050px) {
   .sidebar { display: none; }
   .baskets { grid-template-columns: 1fr; }
