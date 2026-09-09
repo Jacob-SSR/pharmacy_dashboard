@@ -90,9 +90,15 @@ HOSxP ไม่มีฟิลด์ "ตะกร้า" — คำนวณจ
 
 ```bash
 npm install
-npm run dev      # พัฒนา
+npm run dev        # พัฒนา
+npm run typecheck  # ตรวจ type (ต้องผ่านก่อน build image เสมอ)
+npm run lint
 npm run build && npm run start   # production
 ```
+
+> `npm run typecheck` เรียก `next typegen` ให้ก่อนเสมอ — Next 16 สร้าง type ของ route
+> (`PageProps` / `LayoutProps` / `RouteContext`) ตอน typegen ถ้าสั่ง `tsc --noEmit` เปล่า ๆ
+> บน clone ใหม่ที่ยังไม่เคย build จะหา type พวกนี้ไม่เจอ
 
 ## จอ TV (`/tv`)
 
