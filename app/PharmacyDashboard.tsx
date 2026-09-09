@@ -86,7 +86,6 @@ const I = {
   refresh:`<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>`,
   cal:    `<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>`,
   bell:   `<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>`,
-  sun:    `<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>`,
   list:   `<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>`,
 };
 
@@ -415,13 +414,6 @@ export default function PharmacyDashboard({
     setPage(0);
   };
 
-  const toggleTheme = () => {
-    const r = document.documentElement;
-    if (r.dataset.theme === "dark") r.dataset.theme = "light";
-    else if (r.dataset.theme === "light") delete r.dataset.theme;
-    else r.dataset.theme = "dark";
-  };
-
   const th = (key: SortKey, label: string, extra = "") =>
     isTv ? (
       <th className={extra}>{label}</th>
@@ -471,9 +463,6 @@ export default function PharmacyDashboard({
                 </a>
                 <button className="icon-btn" onClick={() => void load()} aria-label="รีเฟรช">
                   <Ic d={I.refresh} size={17} />
-                </button>
-                <button className="icon-btn" onClick={toggleTheme} aria-label="สลับธีมสว่าง/มืด">
-                  <Ic d={I.sun} size={17} />
                 </button>
               </>
             )}

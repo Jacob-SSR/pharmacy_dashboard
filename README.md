@@ -80,7 +80,6 @@ HOSxP ไม่มีฟิลด์ "ตะกร้า" — คำนวณจ
 | `PHARMACY_URGENT_WAIT_MIN` | | `20` | รอเกินกี่นาทีจึงเตือน |
 | `PHARMACY_REFRESH_MS` | | `30000` | จอดึงข้อมูลใหม่ทุกกี่ ms |
 | `PHARMACY_ROW_LIMIT` | | `500` | จำกัดจำนวนแถวต่อรอบ |
-| `PHARMACY_HOSPITAL_NAME` | | `โรงพยาบาลพลับพลาชัย` | ชื่อบนหัวจอ |
 | `DB_POOL_SIZE` `DB_POOL_IDLE` `DB_QUEUE_LIMIT` | | `6` `3` `50` | ขนาด connection pool |
 
 **ถ้าไม่ตั้ง env ฐานข้อมูล** แอปจะไม่ล้ม แต่จะขึ้นข้อมูลตัวอย่างพร้อมป้าย

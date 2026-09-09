@@ -47,8 +47,12 @@ export const REFRESH_MS = num(process.env.PHARMACY_REFRESH_MS, 30_000);
 /** กันแถวบวมเวลาโรงพยาบาลใหญ่/ข้อมูลเพี้ยน */
 export const ROW_LIMIT = num(process.env.PHARMACY_ROW_LIMIT, 500);
 
-export const HOSPITAL_NAME =
-  process.env.PHARMACY_HOSPITAL_NAME ?? "โรงพยาบาลพลับพลาชัย";
+/**
+ * ชื่อบนหัวจอ — ตั้งไว้ในโค้ดที่เดียว ไม่รับจาก env
+ * เคยรับจาก env แล้วเจอปัญหา: คนคัดลอก .env.example รุ่นเก่าที่ยังเขียนชื่อผิดไว้
+ * ค่าใน env จะทับค่าในโค้ดเสมอ จอเลยขึ้นชื่อผิดทั้งที่แก้โค้ดแล้ว
+ */
+export const HOSPITAL_NAME = "โรงพยาบาลพลับพลาชัย";
 
 /** จัดตะกร้าจากจำนวนรายการยา + ธงเร่งด่วนของ visit */
 export function basketOf(drugItems: number, ptPriority: number): Basket {

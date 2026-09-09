@@ -2,7 +2,7 @@
 
 /* ─────────────────────────────────────────────────────────────────────────────
    จอห้องยา — โทน mint/เขียวอ่อน การ์ดขาวมุมมน ตามแบบที่ห้องยาออกแบบไว้
-   ธีม: ตามเครื่องผู้ใช้ (prefers-color-scheme) และกดสลับเองได้ผ่าน data-theme
+   ธีมสว่างอย่างเดียว — ไม่มีโหมดมืด (จอห้องยาเปิดกลางวันตลอด อ่านง่ายกว่า)
    ────────────────────────────────────────────────────────────────────────── */
 
 :root {
@@ -41,43 +41,6 @@
 
   --radius:16px; --radius-md:12px; --radius-sm:8px;
   --ff: var(--font-sarabun), 'Sarabun', 'Helvetica Neue', Arial, sans-serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg:#0A1912; --surface:#12241A; --surface-alt:#162C20; --sidebar:#102017;
-    --accent:#4FC79A; --accent-str:#5FD6A8; --accent-dim:#123626; --on-accent:#06231A; --on-accent:#06231A;
-    --text:#DCF5E9; --text-soft:#A9CDBB; --muted:#7FA793;
-    --border:#1E3A2A; --border-soft:#193322;
-    --sh:rgba(0,0,0,.34); --sh-card:rgba(0,0,0,.40); --row-hover:#162C20;
-    --bk-few-bg:#0E3D28; --bk-few-t:#7FE0B0;
-    --bk-many-bg:#16304C; --bk-many-t:#8CC3F5;
-    --bk-urg-bg:#3E1A1E; --bk-urg-t:#F09096;
-    --s1-bg:#152F5C; --s1-t:#9EC4FD;
-    --s2-bg:#3A2A06; --s2-t:#F5C960;
-    --s3-bg:#2A1A50; --s3-t:#C1A9F7;
-    --s5-bg:#1D2A23; --s5-t:#9BB3A6;
-    --pt-a-bg:#0E3524; --pt-a-t:#69D3A2; --pt-a-d:#38B57C;
-    --pt-b-bg:#3A1622; --pt-b-t:#F090AC; --pt-b-d:#D4557F;
-    --pt-c-bg:#152A46; --pt-c-t:#8FBAF2; --pt-c-d:#4C8BE0;
-  }
-}
-:root[data-theme="dark"] {
-  --bg:#0A1912; --surface:#12241A; --surface-alt:#162C20; --sidebar:#102017;
-  --accent:#4FC79A; --accent-str:#5FD6A8; --accent-dim:#123626; --on-accent:#06231A;
-  --text:#DCF5E9; --text-soft:#A9CDBB; --muted:#7FA793;
-  --border:#1E3A2A; --border-soft:#193322;
-  --sh:rgba(0,0,0,.34); --sh-card:rgba(0,0,0,.40); --row-hover:#162C20;
-  --bk-few-bg:#0E3D28; --bk-few-t:#7FE0B0;
-  --bk-many-bg:#16304C; --bk-many-t:#8CC3F5;
-  --bk-urg-bg:#3E1A1E; --bk-urg-t:#F09096;
-  --s1-bg:#152F5C; --s1-t:#9EC4FD;
-  --s2-bg:#3A2A06; --s2-t:#F5C960;
-  --s3-bg:#2A1A50; --s3-t:#C1A9F7;
-  --s5-bg:#1D2A23; --s5-t:#9BB3A6;
-  --pt-a-bg:#0E3524; --pt-a-t:#69D3A2; --pt-a-d:#38B57C;
-  --pt-b-bg:#3A1622; --pt-b-t:#F090AC; --pt-b-d:#D4557F;
-  --pt-c-bg:#152A46; --pt-c-t:#8FBAF2; --pt-c-d:#4C8BE0;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -144,10 +107,6 @@ body {
 .demo-badge {
   background: #FEF3D4; color: #8A5D06; border: 1px solid #F3D98A;
   border-radius: 999px; padding: 4px 13px; font-size: 12.5px; font-weight: 700; white-space: nowrap;
-}
-:root[data-theme="dark"] .demo-badge { background:#3A2A06; color:#F5C960; border-color:#5A4409; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .demo-badge { background:#3A2A06; color:#F5C960; border-color:#5A4409; }
 }
 
 /* ── แถบข้าง ──────────────────────────────────────────────────────────────── */
@@ -239,12 +198,6 @@ body {
 .banner.warn  .banner-icon { color:#B8860B; }
 .banner.error { background:#FDECEE; border-color:#F3C0C6; color:#9B1C24; }
 .banner.error .banner-icon { color:#C0392B; }
-:root[data-theme="dark"] .banner.warn  { background:#33260A; border-color:#5A4409; color:#F5C960; }
-:root[data-theme="dark"] .banner.error { background:#3A1618; border-color:#6B2A2E; color:#F09096; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .banner.warn  { background:#33260A; border-color:#5A4409; color:#F5C960; }
-  :root:not([data-theme="light"]) .banner.error { background:#3A1618; border-color:#6B2A2E; color:#F09096; }
-}
 .banner-spacer { margin-left: auto; }
 
 /* ── ตะกร้ายา ─────────────────────────────────────────────────────────────── */
