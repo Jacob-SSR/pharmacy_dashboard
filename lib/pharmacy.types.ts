@@ -28,7 +28,11 @@ export interface QueueRow {
   timeStr: string;
   /** นาทีที่รออยู่ ณ ตอนที่ query (นับถึงตอนนี้ หรือถึงเวลารับยาถ้าจบแล้ว) */
   waitMin: number;
-  /** ชื่อแผนกปัจจุบันของผู้ป่วย (ovst.cur_dep) */
+  /** สิทธิการรักษา (pttype.name) เช่น เบิกจ่ายตรง / ชำระเงินเอง / ข้าราชการ */
+  pttype: string;
+  /** depcode ปัจจุบันของผู้ป่วย (ovst.cur_dep) */
+  curDeptCode: string;
+  /** ชื่อแผนกปัจจุบันของผู้ป่วย */
   curDept: string;
   /** ชื่อสถานะ visit ตาม HOSxP (ovstost.name) */
   statusName: string;

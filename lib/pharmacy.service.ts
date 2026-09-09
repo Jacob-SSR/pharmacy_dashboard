@@ -56,6 +56,35 @@ export function todayISO(): string {
   return `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}`;
 }
 
+/**
+ * คำใน ovstost.name หรือชื่อแผนกปัจจุบัน ที่แปลว่า "ออกจาก flow ห้องยาแล้ว"
+ * ลิสต์เดียวกับ ppc-hos-10667/lib/deptStatus.service.ts
+ *
+ * ทำไมต้องมี: สคริปต์เรียกคิวของโรงพยาบาล (getMedicineQ.php ฯลฯ) เขียน DB แค่
+ * `UPDATE sd_queue_calling SET status='N'` ซึ่งเป็นแค่ธง "ประกาศเสียงไปแล้ว"
+ * ไม่ได้ย้ายคนไข้ไปไหน — คนย้ายจริงตอนเจ้าหน้าที่กดใน HOSxP แล้ว cur_dep/ovstost เปลี่ยน
+ * ถ้าดูแต่ service_time.service16 อย่างเดียว visit ที่เจ้าหน้าที่ไม่ได้ลงเวลารับยา
+ * จะค้างอยู่ขั้น "จัดยา" ตลอดไป
+ */
+const FINISHED_KEYWORDS = [
+  "รับยาแล้ว",
+  "กลับบ้าน",
+  "จำหน่าย",
+  "เสร็จสิ้น",
+  "admit",
+  "ส่งต่อ",
+  "refer",
+  "เสียชีวิต",
+  "ถึงแก่กรรม",
+  "dead",
+];
+
+function isFinishedLabel(name: string): boolean {
+  if (!name) return false;
+  const n = name.toLowerCase();
+  return FINISHED_KEYWORDS.some((k) => n.includes(k.toLowerCase()));
+}
+
 const str = (v: unknown): string => (v == null ? "" : String(v)).trim();
 const int = (v: unknown): number => {
   const n = Number(v);
@@ -83,8 +112,10 @@ interface QueueDbRow extends RowDataPacket {
   queue: string | null;
   patient_name: string | null;
   pt_priority: number | null;
+  cur_dep_code: string | null;
   cur_dept: string | null;
   status_name: string | null;
+  pttype_name: string | null;
   drug_items: number;
   drug_qty: number | null;
   stage: Stage;
@@ -108,8 +139,10 @@ function buildQueueSql(): { sql: string; depParams: string[] } {
       COALESCE(o.oqueue, '')                        AS queue,
       CONCAT_WS(' ', pt.pname, pt.fname, pt.lname)  AS patient_name,
       IFNULL(o.pt_priority, 0)                      AS pt_priority,
+      COALESCE(o.cur_dep, '')                       AS cur_dep_code,
       COALESCE(kc.department, '')                   AS cur_dept,
       COALESCE(os.name, '')                         AS status_name,
+      COALESCE(ptt.name, '')                        AS pttype_name,
       dr.drug_items,
       dr.drug_qty,
 
@@ -147,6 +180,10 @@ function buildQueueSql(): { sql: string; depParams: string[] } {
 
     LEFT JOIN kskdepartment kc ON kc.depcode = o.cur_dep
     LEFT JOIN ovstost       os ON os.ovstost = o.ovstost
+    -- สิทธิการรักษา: vn_stat เป็นตารางสรุปที่อาจยังไม่มีแถวของ visit ที่ยังไม่ปิด
+    -- จึงเอา ovst.pttype มาก่อน แล้วค่อย fallback ไป vn_stat
+    LEFT JOIN vn_stat       vs  ON vs.vn = o.vn
+    LEFT JOIN pttype        ptt ON ptt.pttype = COALESCE(o.pttype, vs.pttype)
 
     LEFT JOIN (
       SELECT
@@ -249,21 +286,42 @@ export async function getPharmacyQueue(
   const rows: QueueRow[] = dbRows.map((r) => {
     const drugItems = int(r.drug_items);
     const ptPriority = int(r.pt_priority);
+    const curDeptCode = str(r.cur_dep_code);
+    const curDept = str(r.cur_dept);
+    const statusName = str(r.status_name);
+
+    // ขั้นจาก SQL ยึด service_time เป็นหลัก แล้วมาปรับด้วยตำแหน่งจริงของคนไข้ตรงนี้
+    let stage: Stage = r.stage;
+    if (stage !== "dispensed") {
+      const leftPharmacy =
+        // HOSxP ปิด visit / ย้ายไปจุดออก (กลับบ้าน, จำหน่าย, admit, refer ...)
+        isFinishedLabel(statusName) ||
+        isFinishedLabel(curDept) ||
+        // เคยถึงห้องยาแล้ว แต่ตอนนี้ cur_dep ไม่ใช่ห้องยาแล้ว = ห้องยาจ่ายเสร็จส่งต่อไป
+        (stage !== "incoming" &&
+          PHARMACY_DEPCODES.length > 0 &&
+          curDeptCode !== "" &&
+          !PHARMACY_DEPCODES.includes(curDeptCode));
+      if (leftPharmacy) stage = "dispensed";
+    }
+
     return {
       vn: str(r.vn),
       hn: str(r.hn),
       queue: str(r.queue),
       name: str(r.patient_name) || str(r.hn),
       basket: basketOf(drugItems, ptPriority),
-      stage: r.stage,
+      stage,
       drugItems,
       drugQty: int(r.drug_qty),
       ptPriority,
       timeStr: str(r.time_str),
       // นาฬิกาเครื่อง DB กับเวลา checkpoint อาจเพี้ยนกันได้ — กันค่าติดลบไว้
       waitMin: Math.max(0, int(r.wait_min)),
-      curDept: str(r.cur_dept),
-      statusName: str(r.status_name),
+      pttype: str(r.pttype_name),
+      curDeptCode,
+      curDept,
+      statusName,
     };
   });
 
