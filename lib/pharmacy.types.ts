@@ -6,10 +6,11 @@
 export type Basket = "few" | "many" | "urgent";
 
 /**
- * ขั้นในห้องยา — ยึดตามสคริปต์ที่โรงพยาบาลใช้จริง
- *   waiting   อยู่ที่ห้องยา (ovst.cur_dep) แต่ยังไม่ถูกเรียก — ตาม getScreeningW.php
- *   calling   ถูกเรียกคิวที่จุดจ่ายยาแล้ว — ตาม getMedicineQ.php
- *   dispensed รับยาแล้ว / ออกจากห้องยาแล้ว
+ * ขั้นในห้องยา — 3 ขั้น (flow จริงมี 5 แต่ HOSxP บันทึกแค่ 3 จุด ดู pharmacy.constants.ts)
+ *   waiting   "รับใบสั่งยา" — อยู่ที่ห้องยา ยังไม่ถูกเรียก (getScreeningW.php)
+ *             ครอบขั้น Check/สติกเกอร์/แบ่งตะกร้า/จัดยา ที่ไม่มีใครบันทึก
+ *   calling   "จ่ายยา" — ถูกเรียกคิวที่จุดจ่ายยาแล้ว (getMedicineQ.php)
+ *   dispensed "รับยาแล้ว" — service16 หรือออกจากห้องยาแล้ว
  */
 export type Stage = "waiting" | "calling" | "dispensed";
 
