@@ -16,6 +16,7 @@ import {
   STAGE_SEQ,
   fmtWait,
 } from "@/lib/pharmacy.constants";
+import { useAnnouncer } from "./useAnnouncer";
 import type {
   Basket,
   DrugLine,
@@ -415,71 +416,26 @@ export default function PharmacyDashboard({
   const pending = rows.length - (data?.byStage.dispensed ?? 0);
   const called = (data?.byStage.calling ?? 0) + (data?.byStage.dispensed ?? 0);
 
-  // ── ระบบเสียงเรียกชื่อ (ทำตาม getMedicineQ.php) ──
-  // เปิดได้เมื่อ env เปิด + URL มี ?voice=1 → กันไม่ให้ทุกจอแย่งกันประกาศ
+  // ── ระบบเสียงเรียกชื่อ ──
+  // ใช้ useAnnouncer ที่ยกมาจาก cashier_dashboard — อ่านอย่างเดียว ไม่เขียน HOSxP
+  // เปิดได้เมื่อ env เปิด + URL มี ?voice=1 (กันหลายจอประกาศทับกัน)
   const voiceAvailable = Boolean(voiceRequested && data?.voice.enabled);
-  const [voiceOn, setVoiceOn] = useState(false);
-  const [nowCalling, setNowCalling] = useState<string | null>(null);
-  const speaking = useRef(false);
 
-  // browser บล็อกเสียงอัตโนมัติจนกว่าผู้ใช้จะกดอะไรบนหน้าเว็บก่อน
-  // เล่นไฟล์เงียบสั้น ๆ ในจังหวะที่กดปุ่ม เพื่อขอสิทธิ์เล่นเสียงไว้ใช้ทั้ง session
-  const enableVoice = async () => {
-    try {
-      await new Audio(
-        "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=",
-      ).play();
-    } catch {
-      // เล่นไม่ได้ก็ไม่เป็นไร — ตัว gesture ที่กดปุ่มมักพอให้เสียงจริงเล่นได้
-    }
-    if ("speechSynthesis" in window) window.speechSynthesis.getVoices();
-    setVoiceOn(true);
-  };
+  // ❗ ต้องห่อ useCallback — useAnnouncer ใส่ buildAnnouncement ไว้ใน dep ของ effect
+  //    ถ้าส่ง arrow inline identity จะเปลี่ยนทุก render → effect ล้างแล้วตั้ง timer ใหม่
+  //    ทุกครั้ง → poll ยิงถี่กว่าที่ตั้งไว้มาก และประกาศข้ามคน (เจอตอนทดสอบจริง)
+  const buildAnnouncement = useCallback(
+    // ข้อความเดียวกับ getMedicineQ.php เดิม
+    (row: { callName: string; dept: string }) =>
+      `ขอเชิญ ${row.callName} ที่จุด ${row.dept} ค่ะ`,
+    [],
+  );
 
-  useEffect(() => {
-    if (!voiceAvailable || !voiceOn) return;
-
-    const speak = async () => {
-      if (speaking.current) return; // ยังอ่านคนก่อนไม่จบ อย่าซ้อน
-      speaking.current = true;
-      try {
-        const res = await fetch("/api/pharmacy/announce", { method: "POST" });
-        if (!res.ok) return;
-        const { announcement } = (await res.json()) as {
-          announcement: { text: string; audioBase64: string | null; name: string } | null;
-        };
-        if (!announcement) return;
-
-        setNowCalling(announcement.text);
-        if (announcement.audioBase64) {
-          const el = new Audio(`data:audio/mpeg;base64,${announcement.audioBase64}`);
-          await new Promise<void>((done) => {
-            el.onended = () => done();
-            el.onerror = () => done();
-            void el.play().catch(() => done());
-          });
-        } else if ("speechSynthesis" in window) {
-          // Google TTS มาไม่ได้ (ตู้อยู่วงปิด/ถูก rate limit) → ใช้เสียงของ browser
-          const u = new SpeechSynthesisUtterance(announcement.text);
-          u.lang = "th-TH";
-          u.rate = 0.9;
-          await new Promise<void>((done) => {
-            u.onend = () => done();
-            u.onerror = () => done();
-            window.speechSynthesis.speak(u);
-          });
-        }
-        setTimeout(() => setNowCalling(null), 4000);
-      } catch {
-        // เรียกไม่สำเร็จรอบนี้ ปล่อยให้รอบถัดไปลองใหม่
-      } finally {
-        speaking.current = false;
-      }
-    };
-
-    const id = setInterval(() => void speak(), data?.voice.pollMs ?? 5000);
-    return () => clearInterval(id);
-  }, [voiceAvailable, voiceOn, data?.voice.pollMs]);
+  const { calling, needsUnlock, unlockSound } = useAnnouncer({
+    enabled: voiceAvailable,
+    refreshSeconds: Math.max(5, Math.round((data?.voice.pollMs ?? 5000) / 1000)),
+    buildAnnouncement,
+  });
 
   const sortBy = (key: SortKey) => {
     if (key === sortKey) setSortAsc((v) => !v);
@@ -529,12 +485,12 @@ export default function PharmacyDashboard({
                 ข้อมูลตัวอย่าง
               </span>
             )}
-            {voiceAvailable && !voiceOn && (
-              <button className="btn-primary" onClick={() => void enableVoice()}>
-                🔊 เปิดเสียงเรียกชื่อ
+            {voiceAvailable && needsUnlock && (
+              <button className="btn-primary" onClick={() => void unlockSound()}>
+                🔊 กดเพื่อเปิดเสียง
               </button>
             )}
-            {voiceAvailable && voiceOn && (
+            {voiceAvailable && !needsUnlock && (
               <span className="voice-on">🔊 เสียงทำงาน</span>
             )}
             {!isTv && (
@@ -756,7 +712,11 @@ export default function PharmacyDashboard({
         </main>
       </div>
 
-      {nowCalling && <div className="call-toast">📢 {nowCalling}</div>}
+      {voiceAvailable && calling && (
+        <div className="call-toast">
+          📢 ขอเชิญ {calling.callName} ที่จุด {calling.dept} ค่ะ
+        </div>
+      )}
 
       {/* หน้าต่างรายการยาเปิดจากปุ่มในตาราง — TV ไม่มีคนกด จึงไม่เรนเดอร์เลย */}
       {!isTv && selected && data && (
