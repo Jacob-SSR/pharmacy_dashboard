@@ -64,6 +64,8 @@ export interface PharmacyQueueData {
     refreshMs: number;
   };
   hospitalName: string;
+  /** ระบบเสียงเรียกชื่อ — จอเปิดใช้ได้เมื่อ enabled และ URL มี ?voice=1 */
+  voice: { enabled: boolean; pollMs: number };
 }
 
 /** 1 บรรทัดยาของผู้ป่วย 1 คน (ใช้ในหน้าต่างรายละเอียด) */

@@ -5,6 +5,8 @@
 //   ?sec=15    เปลี่ยนหน้าทุกกี่วินาที (ค่าเริ่มต้น 12)
 //   ?done=1    แสดงคนที่รับยาแล้วด้วย (ค่าเริ่มต้นไม่แสดง — TV ควรเห็นแต่งานค้าง)
 //   ?mask=1    ปิดบังนามสกุล เผื่อ TV ตั้งในมุมที่ผู้ป่วยมองเห็น
+//   ?voice=1   เปิดเสียงเรียกชื่อบนจอนี้ (ต้องตั้ง env PHARMACY_VOICE=1 ด้วย)
+//              ⚠️ เปิดที่ "จอเดียว" เท่านั้น เปิดหลายจอจะแย่งกันประกาศ
 import PharmacyDashboard from "../PharmacyDashboard";
 import { getPharmacyQueue } from "@/lib/pharmacy.service";
 import type { PharmacyQueueData, TvOptions } from "@/lib/pharmacy.types";
@@ -45,5 +47,12 @@ export default async function TvPage(props: PageProps<"/tv">) {
     initialError = "เชื่อมต่อฐานข้อมูลไม่สำเร็จ กำลังลองใหม่อัตโนมัติ";
   }
 
-  return <PharmacyDashboard initial={initial} initialError={initialError} tv={tv} />;
+  return (
+    <PharmacyDashboard
+      initial={initial}
+      initialError={initialError}
+      tv={tv}
+      voiceRequested={flag(sp.voice)}
+    />
+  );
 }

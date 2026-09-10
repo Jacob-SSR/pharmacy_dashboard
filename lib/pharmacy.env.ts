@@ -54,6 +54,18 @@ export const ROW_LIMIT = num(process.env.PHARMACY_ROW_LIMIT, 500);
  */
 export const HOSPITAL_NAME = "โรงพยาบาลพลับพลาชัย";
 
+// ─── ระบบเสียงเรียกชื่อ ────────────────────────────────────────────────────────
+// ❗ นี่เป็น "จุดเดียวในแอป" ที่เขียนลง HOSxP — ปิดไว้เป็นค่าเริ่มต้น
+//    เปิดแล้วจะทำเหมือน getMedicineQ.php เดิม คือพอประกาศเสียงเสร็จจะ
+//    UPDATE sd_queue_calling SET status='N' เพื่อกันประกาศชื่อเดิมซ้ำ
+//    ถ้ายังเปิดจอ PHP เดิมอยู่ด้วย สองระบบจะแย่งกันประกาศ (ใครพลิกธงก่อนได้ก่อน)
+//    → เลือกใช้อย่างใดอย่างหนึ่ง
+export const VOICE_ENABLED =
+  (process.env.PHARMACY_VOICE ?? "").trim() === "1";
+
+/** จอที่เปิดเสียงจะถามหาคิวใหม่ทุกกี่ ms (ถี่กว่ารอบรีเฟรชตาราง เพื่อให้เรียกทัน) */
+export const VOICE_POLL_MS = num(process.env.PHARMACY_VOICE_POLL_MS, 5_000);
+
 /**
  * จัดตะกร้าจากจำนวนรายการยา + ธงเร่งด่วนของ visit
  *

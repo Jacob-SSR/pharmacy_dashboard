@@ -261,11 +261,14 @@ export default function PharmacyDashboard({
   initial,
   initialError,
   tv = null,
+  voiceRequested = false,
 }: {
   initial: PharmacyQueueData | null;
   initialError: string | null;
   /** ส่งค่ามา = เรนเดอร์เป็นจอ TV (หน้า /tv) · null = จอบนโต๊ะตามปกติ */
   tv?: TvOptions | null;
+  /** URL มี ?voice=1 — จอนี้ขอเป็นตัวประกาศเสียง */
+  voiceRequested?: boolean;
 }) {
   const isTv = tv !== null;
 
@@ -412,6 +415,72 @@ export default function PharmacyDashboard({
   const pending = rows.length - (data?.byStage.dispensed ?? 0);
   const called = (data?.byStage.calling ?? 0) + (data?.byStage.dispensed ?? 0);
 
+  // ── ระบบเสียงเรียกชื่อ (ทำตาม getMedicineQ.php) ──
+  // เปิดได้เมื่อ env เปิด + URL มี ?voice=1 → กันไม่ให้ทุกจอแย่งกันประกาศ
+  const voiceAvailable = Boolean(voiceRequested && data?.voice.enabled);
+  const [voiceOn, setVoiceOn] = useState(false);
+  const [nowCalling, setNowCalling] = useState<string | null>(null);
+  const speaking = useRef(false);
+
+  // browser บล็อกเสียงอัตโนมัติจนกว่าผู้ใช้จะกดอะไรบนหน้าเว็บก่อน
+  // เล่นไฟล์เงียบสั้น ๆ ในจังหวะที่กดปุ่ม เพื่อขอสิทธิ์เล่นเสียงไว้ใช้ทั้ง session
+  const enableVoice = async () => {
+    try {
+      await new Audio(
+        "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=",
+      ).play();
+    } catch {
+      // เล่นไม่ได้ก็ไม่เป็นไร — ตัว gesture ที่กดปุ่มมักพอให้เสียงจริงเล่นได้
+    }
+    if ("speechSynthesis" in window) window.speechSynthesis.getVoices();
+    setVoiceOn(true);
+  };
+
+  useEffect(() => {
+    if (!voiceAvailable || !voiceOn) return;
+
+    const speak = async () => {
+      if (speaking.current) return; // ยังอ่านคนก่อนไม่จบ อย่าซ้อน
+      speaking.current = true;
+      try {
+        const res = await fetch("/api/pharmacy/announce", { method: "POST" });
+        if (!res.ok) return;
+        const { announcement } = (await res.json()) as {
+          announcement: { text: string; audioBase64: string | null; name: string } | null;
+        };
+        if (!announcement) return;
+
+        setNowCalling(announcement.text);
+        if (announcement.audioBase64) {
+          const el = new Audio(`data:audio/mpeg;base64,${announcement.audioBase64}`);
+          await new Promise<void>((done) => {
+            el.onended = () => done();
+            el.onerror = () => done();
+            void el.play().catch(() => done());
+          });
+        } else if ("speechSynthesis" in window) {
+          // Google TTS มาไม่ได้ (ตู้อยู่วงปิด/ถูก rate limit) → ใช้เสียงของ browser
+          const u = new SpeechSynthesisUtterance(announcement.text);
+          u.lang = "th-TH";
+          u.rate = 0.9;
+          await new Promise<void>((done) => {
+            u.onend = () => done();
+            u.onerror = () => done();
+            window.speechSynthesis.speak(u);
+          });
+        }
+        setTimeout(() => setNowCalling(null), 4000);
+      } catch {
+        // เรียกไม่สำเร็จรอบนี้ ปล่อยให้รอบถัดไปลองใหม่
+      } finally {
+        speaking.current = false;
+      }
+    };
+
+    const id = setInterval(() => void speak(), data?.voice.pollMs ?? 5000);
+    return () => clearInterval(id);
+  }, [voiceAvailable, voiceOn, data?.voice.pollMs]);
+
   const sortBy = (key: SortKey) => {
     if (key === sortKey) setSortAsc((v) => !v);
     else { setSortKey(key); setSortAsc(true); }
@@ -459,6 +528,14 @@ export default function PharmacyDashboard({
               <span className="demo-badge" title="ยังไม่ได้ตั้งค่า DB_HOST/DB_USER/DB_PASS/DB_NAME">
                 ข้อมูลตัวอย่าง
               </span>
+            )}
+            {voiceAvailable && !voiceOn && (
+              <button className="btn-primary" onClick={() => void enableVoice()}>
+                🔊 เปิดเสียงเรียกชื่อ
+              </button>
+            )}
+            {voiceAvailable && voiceOn && (
+              <span className="voice-on">🔊 เสียงทำงาน</span>
             )}
             {!isTv && (
               <>
@@ -678,6 +755,8 @@ export default function PharmacyDashboard({
           </div>
         </main>
       </div>
+
+      {nowCalling && <div className="call-toast">📢 {nowCalling}</div>}
 
       {/* หน้าต่างรายการยาเปิดจากปุ่มในตาราง — TV ไม่มีคนกด จึงไม่เรนเดอร์เลย */}
       {!isTv && selected && data && (

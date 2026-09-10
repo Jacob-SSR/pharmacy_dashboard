@@ -28,6 +28,8 @@ import {
   REFRESH_MS,
   ROW_LIMIT,
   URGENT_WAIT_MIN,
+  VOICE_ENABLED,
+  VOICE_POLL_MS,
   basketOf,
 } from "./pharmacy.env";
 import { demoDrugLines, demoQueue } from "./pharmacy.demo";
@@ -269,6 +271,7 @@ export function summarize(
       refreshMs: REFRESH_MS,
     },
     hospitalName: HOSPITAL_NAME,
+    voice: { enabled: VOICE_ENABLED, pollMs: VOICE_POLL_MS },
   };
 }
 
