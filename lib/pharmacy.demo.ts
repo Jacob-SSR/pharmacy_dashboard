@@ -64,6 +64,8 @@ export function demoQueue(date: string): QueueRow[] {
       timeStr: `${pad(at.getHours())}:${pad(at.getMinutes())}`,
       waitMin: s.agoMin,
       pttype: s.pttype,
+      receiptCount: i % 3 === 0 ? 0 : 1,
+      receiptAmount: i % 3 === 1 ? 150 : 0,
       curDeptCode: "051",
       curDept: "ห้องยาผู้ป่วยนอก",
       statusName: s.stage === "dispensed" ? "รับยาแล้ว" : "รอรับยา",

@@ -22,6 +22,7 @@ import "server-only";
 import type { RowDataPacket } from "mysql2";
 import { getDb } from "./db";
 import { hospitalDate, visitDrugsSql } from "./pharmacy.drugs";
+import { visitReceiptsSql } from "./pharmacy.payment";
 import {
   HOSPITAL_NAME,
   MANY_ITEMS_THRESHOLD,
@@ -119,6 +120,8 @@ interface QueueDbRow extends RowDataPacket {
   pttype_name: string | null;
   drug_items: number;
   drug_qty: number | null;
+  receipt_count: number;
+  receipt_amount: number | null;
   stage: Stage;
   time_str: string | null;
   wait_min: number | null;
@@ -151,6 +154,8 @@ function buildQueueSql(): { sql: string; depParams: string[] } {
       COALESCE(ptt.name, '')                        AS pttype_name,
       COALESCE(dr.drug_items, 0)                    AS drug_items,
       COALESCE(dr.drug_qty, 0)                      AS drug_qty,
+      COALESCE(rp.receipt_count, 0)                 AS receipt_count,
+      COALESCE(rp.receipt_amount, 0)                AS receipt_amount,
 
       -- ขั้นในห้องยา — ไล่จากขั้นท้ายสุดก่อน แถวหนึ่งได้ขั้นเดียวเสมอ
       CASE
@@ -190,6 +195,8 @@ function buildQueueSql(): { sql: string; depParams: string[] } {
       FROM (${visitDrugsSql()}) op
       GROUP BY op.vn
     ) dr ON dr.vn = o.vn
+
+    LEFT JOIN (${visitReceiptsSql()}) rp ON rp.vn = o.vn
 
     -- การเรียกคิวที่จุดจ่ายยา — เงื่อนไขเดียวกับ getMedicineQ.php
     --   sd_queue_calling_curdep IN (depcode) AND DATE(sd_queue_calling_datetime) = วันนั้น
@@ -288,10 +295,10 @@ export async function getPharmacyQueue(
   const { sql, depParams } = buildQueueSql();
   // ลำดับ param ต้องตรงกับลำดับ ? ใน SQL:
   //   1) วันที่ visit ของรายการยา (ovst.vstdate)
-  //   2) วันที่ของ sd_queue_calling   3..n) depcode ของ sd_queue_calling
+  //   2) วันที่ visit ของใบเสร็จ  3) วันที่ของ sd_queue_calling แล้ว depcode
   //   n+1) service_time.vstdate       n+2) ovst.vstdate
   //   n+3..) depcode ของ o.cur_dep IN (...)   สุดท้าย) depcode ของ o.last_dep IN (...)
-  const params = [date, date, ...depParams, date, date, ...depParams, ...depParams];
+  const params = [date, date, date, ...depParams, date, date, ...depParams, ...depParams];
 
   const [dbRows] = await db.query<QueueDbRow[]>(sql, params);
 
@@ -329,6 +336,8 @@ export async function getPharmacyQueue(
       // นาฬิกาเครื่อง DB กับเวลา checkpoint อาจเพี้ยนกันได้ — กันค่าติดลบไว้
       waitMin: Math.max(0, int(r.wait_min)),
       pttype: str(r.pttype_name),
+      receiptCount: int(r.receipt_count),
+      receiptAmount: Number(r.receipt_amount) || 0,
       curDeptCode,
       curDept,
       statusName,

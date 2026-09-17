@@ -9,6 +9,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import Link from "next/link";
+import { paymentLabel } from "@/lib/pharmacy.payment";
 import {
   BASKET_META,
   BASKET_SEQ,
@@ -635,6 +636,7 @@ export default function PharmacyDashboard({
           <p className="modal-note">
             นับรหัสยาไม่ซ้ำที่มีจำนวนสุทธิมากกว่า 0 ตาม VN ของวันที่เลือก · ไม่รวมค่าบริการ
             {" · "}ตะกร้าด้านบนนับผู้ที่ยังไม่รับยา (รวมเรียกแล้ว)
+            {!isTv && " · จ่ายแล้ว = พบใบเสร็จที่ไม่ยกเลิก ยังไม่ยืนยันว่าจ่ายครบ · ไม่พบใบเสร็จอาจใช้สิทธิรักษา"}
             {!isTv && stageFilter === "waiting" && " · ตารางแสดงเฉพาะรอเรียก — กดการ์ดใบสั่งยาเข้าซ้ำเพื่อดูทุกสถานะ"}
           </p>
           <div className="table-card" ref={tableRef}>
@@ -648,6 +650,7 @@ export default function PharmacyDashboard({
                     {th("hn", "HN")}
                     {th("name", "ชื่อ - นามสกุล")}
                     {th("pttype", "สิทธิการรักษา")}
+                    {!isTv && <th>จ่ายเงินหรือยัง</th>}
                     {th("basket", "ตะกร้า")}
                     {th("items", "ชนิดยา", "col-items")}
                     {th("wait", "เวลารอ")}
@@ -658,7 +661,7 @@ export default function PharmacyDashboard({
                 <tbody>
                   {visible.length === 0 ? (
                     <tr>
-                      <td colSpan={isTv ? 10 : 11}>
+                      <td colSpan={isTv ? 10 : 12}>
                         <div className="empty-state">
                           <Ic d={I.search} size={44} />
                           <p>ไม่พบรายการที่ตรงกับเงื่อนไข</p>
@@ -678,6 +681,18 @@ export default function PharmacyDashboard({
                             ? <span className={`tag ${pttypeClass(r.pttype)}`}><span className="tag-dot" />{r.pttype}</span>
                             : <span className="col-id">—</span>}
                         </td>
+                        {!isTv && (
+                          <td>
+                            <span className={`tag ${r.receiptCount > 0 && r.receiptAmount > 0 ? "st-5" : "pt-c"}`}>
+                              {paymentLabel(r.receiptCount, r.receiptAmount)}
+                            </span>
+                            {r.receiptCount > 0 && (
+                              <div className="payment-amount">
+                                ยอดใบเสร็จ {r.receiptAmount.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
+                              </div>
+                            )}
+                          </td>
+                        )}
                         <td><BasketTag basket={r.basket} /></td>
                         <td className="col-items">{r.drugItems}</td>
                         <td><WaitChip row={r} urgentMin={urgentMin} /></td>
