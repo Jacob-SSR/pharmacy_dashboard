@@ -26,14 +26,14 @@ export const STAGE_META: Record<
   { label: string; sub: string; num: string; pulse: boolean; cls: string }
 > = {
   waiting: {
-    label: "รับใบสั่งยา",
+    label: "ใบสั่งยาเข้า",
     sub: "Check + สติกเกอร์ + แบ่งตะกร้า + จัดยา",
     num: "1",
     pulse: false,
     cls: "st-1",
   },
   calling: {
-    label: "จ่ายยา",
+    label: "เรียกรับยา",
     sub: "เรียกชื่อ + จ่ายยา",
     num: "2",
     pulse: true,

@@ -25,7 +25,7 @@ export interface QueueRow {
   /** null = ยังไม่มีใบสั่งยาในระบบ (ยืนอยู่ห้องยาแต่ยังไม่ได้ลงรายการ) — ไม่นับเข้าตะกร้า */
   basket: Basket | null;
   stage: Stage;
-  /** จำนวนรายการยาของ visit นี้ (นับบรรทัดใน opitemrece ที่เป็นยา) */
+  /** จำนวนรหัสยาไม่ซ้ำของ visit ที่มีจำนวนสุทธิมากกว่า 0 */
   drugItems: number;
   /** จำนวนหน่วยยารวมของ visit นี้ */
   drugQty: number;

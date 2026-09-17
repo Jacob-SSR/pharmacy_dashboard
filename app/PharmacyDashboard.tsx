@@ -96,7 +96,7 @@ const I = {
 
 function BasketTag({ basket }: { basket: Basket | null }) {
   // ยืนอยู่ห้องยาแต่ใบสั่งยายังไม่ลงระบบ — ยังไม่มีอะไรให้จัดตะกร้า
-  if (!basket) return <span className="col-id">ยังไม่มีใบสั่งยา</span>;
+  if (!basket) return <span className="col-id">ไม่พบยาที่มียอดคงเหลือ</span>;
   const m = BASKET_META[basket];
   return <span className={`tag ${m.cls}`}>{m.icon} {m.label}</span>;
 }
@@ -225,7 +225,7 @@ function DrugModal({ row, date, onClose }: { row: QueueRow; date: string; onClos
           <div>
             <h2>{row.name}</h2>
             <div className="sub">
-              HN {row.hn} · VN {row.vn} · {row.drugItems} รายการ
+              HN {row.hn} · VN {row.vn} · {lines?.length ?? row.drugItems} ชนิดยา
               {row.pttype && ` · ${row.pttype}`}
             </div>
           </div>
@@ -277,8 +277,8 @@ export default function PharmacyDashboard({
   const [error, setError] = useState<string | null>(initialError);
   const [query, setQuery] = useState("");
   const [basketFilter, setBasketFilter] = useState<Basket | "all">("all");
-  const [stageFilter, setStageFilter] = useState<Stage | "all">("all");
-  const [sortKey, setSortKey] = useState<SortKey>("wait");
+  const [stageFilter, setStageFilter] = useState<Stage | "all">(isTv ? "all" : "waiting");
+  const [sortKey, setSortKey] = useState<SortKey>("items");
   const [sortAsc, setSortAsc] = useState(false);
   const [selected, setSelected] = useState<QueueRow | null>(null);
   const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
@@ -513,7 +513,20 @@ export default function PharmacyDashboard({
         <main className="main">
           {/* การ์ดสรุปตามขั้นตอน — กดเพื่อกรองตาราง */}
           <div className="kpis">
-            {STAGE_SEQ.map((stage) => {
+            {(["waiting", "preparing", "calling", "dispensed"] as const).map((stage) => {
+              if (stage === "preparing") {
+                return (
+                  <div className="kpi stage-preparing kpi-unavailable" key={stage}
+                       title="ยังไม่มีข้อมูลบันทึกเริ่มจัดยา จึงยังแยกจำนวนจากใบสั่งยาเข้าไม่ได้">
+                    <div className="kpi-icon"><Ic d={I.glass} size={23} /></div>
+                    <div className="kpi-body">
+                      <div className="kpi-label">จัดยา</div>
+                      <div className="kpi-num" aria-label="ยังไม่มีข้อมูล">—</div>
+                      <div className="kpi-unit">ยังไม่มีข้อมูลสถานะ</div>
+                    </div>
+                  </div>
+                );
+              }
               const m = STAGE_META[stage];
               const icon = stage === "waiting" ? I.users
                 : stage === "calling" ? I.phone : I.check;
@@ -522,7 +535,7 @@ export default function PharmacyDashboard({
                 <button
                   key={stage}
                   type="button"
-                  className={`kpi stage-${stage}${active ? " active" : ""}`}
+                  className={`kpi stage-${stage === "waiting" ? "incoming" : stage}${active ? " active" : ""}`}
                   onClick={isTv ? undefined : () => {
                     setStageFilter((c) => (c === stage ? "all" : stage));
                     setPage(0);
@@ -569,8 +582,8 @@ export default function PharmacyDashboard({
             {BASKET_SEQ.map((b) => {
               const m = BASKET_META[b];
               const hint = b === "urgent" ? "ผู้ป่วยเร่งด่วน (pt_priority)"
-                : b === "many" ? `ตั้งแต่ ${manyItems} รายการขึ้นไป`
-                : `น้อยกว่า ${manyItems} รายการ`;
+                : b === "many" ? `ตั้งแต่ ${manyItems} ชนิดขึ้นไป`
+                : `1–${manyItems - 1} ชนิด`;
               return (
                 <div className="basket-card" key={b}>
                   <div className={`basket-chip ${b}`}>{m.icon}</div>
@@ -619,6 +632,11 @@ export default function PharmacyDashboard({
             </div>
           )}
 
+          <p className="modal-note">
+            นับรหัสยาไม่ซ้ำที่มีจำนวนสุทธิมากกว่า 0 ตาม VN ของวันที่เลือก · ไม่รวมค่าบริการ
+            {" · "}ตะกร้าด้านบนนับผู้ที่ยังไม่รับยา (รวมเรียกแล้ว)
+            {!isTv && stageFilter === "waiting" && " · ตารางแสดงเฉพาะรอเรียก — กดการ์ดใบสั่งยาเข้าซ้ำเพื่อดูทุกสถานะ"}
+          </p>
           <div className="table-card" ref={tableRef}>
             <div className="table-scroll">
               <table>
@@ -631,7 +649,7 @@ export default function PharmacyDashboard({
                     {th("name", "ชื่อ - นามสกุล")}
                     {th("pttype", "สิทธิการรักษา")}
                     {th("basket", "ตะกร้า")}
-                    {th("items", "รายการยา", "col-items")}
+                    {th("items", "ชนิดยา", "col-items")}
                     {th("wait", "เวลารอ")}
                     {th("stage", "สถานะ")}
                     {!isTv && <th>ดำเนินการ</th>}

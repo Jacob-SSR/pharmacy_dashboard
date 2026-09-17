@@ -21,6 +21,7 @@
 import "server-only";
 import type { RowDataPacket } from "mysql2";
 import { getDb } from "./db";
+import { hospitalDate, visitDrugsSql } from "./pharmacy.drugs";
 import {
   HOSPITAL_NAME,
   MANY_ITEMS_THRESHOLD,
@@ -51,11 +52,9 @@ export function assertDate(d: string): string {
   return d;
 }
 
-/** วันนี้ตามเวลาเครื่อง (ไม่ใช่ UTC) ในรูป YYYY-MM-DD */
+/** วันที่โรงพยาบาล แม้ server/container ใช้ UTC */
 export function todayISO(): string {
-  const n = new Date();
-  const p = (v: number) => String(v).padStart(2, "0");
-  return `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}`;
+  return hospitalDate();
 }
 
 /**
@@ -188,9 +187,7 @@ function buildQueueSql(): { sql: string; depParams: string[] } {
       SELECT op.vn,
              COUNT(*)                  AS drug_items,
              SUM(COALESCE(op.qty, 0))  AS drug_qty
-      FROM opitemrece op
-      INNER JOIN drugitems di ON di.icode = op.icode
-      WHERE op.vstdate = ?
+      FROM (${visitDrugsSql()}) op
       GROUP BY op.vn
     ) dr ON dr.vn = o.vn
 
@@ -290,7 +287,7 @@ export async function getPharmacyQueue(
 
   const { sql, depParams } = buildQueueSql();
   // ลำดับ param ต้องตรงกับลำดับ ? ใน SQL:
-  //   1) opitemrece.vstdate
+  //   1) วันที่ visit ของรายการยา (ovst.vstdate)
   //   2) วันที่ของ sd_queue_calling   3..n) depcode ของ sd_queue_calling
   //   n+1) service_time.vstdate       n+2) ovst.vstdate
   //   n+3..) depcode ของ o.cur_dep IN (...)   สุดท้าย) depcode ของ o.last_dep IN (...)
@@ -326,7 +323,7 @@ export async function getPharmacyQueue(
       basket: basketOf(drugItems, ptPriority),
       stage,
       drugItems,
-      drugQty: int(r.drug_qty),
+      drugQty: Number(r.drug_qty) || 0,
       ptPriority,
       timeStr: str(r.time_str),
       // นาฬิกาเครื่อง DB กับเวลา checkpoint อาจเพี้ยนกันได้ — กันค่าติดลบไว้
@@ -402,16 +399,15 @@ export async function getDrugLines(
       MAX(${nameExpr})         AS name,
       MAX(${strengthExpr})     AS strength,
       MAX(${unitsExpr})        AS units,
-      SUM(COALESCE(op.qty, 0)) AS qty
-    FROM opitemrece op
+      MAX(op.qty) AS qty
+    FROM (${visitDrugsSql(true)}) op
     INNER JOIN drugitems di ON di.icode = op.icode
-    WHERE op.vn = ? AND op.vstdate = ?
     -- group แค่ icode แล้วห่อคอลัมน์อื่นด้วย MAX — ชื่อ alias ซ้ำกับคอลัมน์จริงของ
     -- drugitems (name/units) ถ้าเอาไปใส่ GROUP BY/ORDER BY ตรง ๆ จะกำกวม
     GROUP BY op.icode
     ORDER BY 2
   `,
-    [vn, date],
+    [date, vn],
   );
 
   return rows.map((r) => ({
@@ -419,6 +415,6 @@ export async function getDrugLines(
     name: str(r.name),
     strength: str(r.strength),
     units: str(r.units),
-    qty: int(r.qty),
+    qty: Number(r.qty) || 0,
   }));
 }
