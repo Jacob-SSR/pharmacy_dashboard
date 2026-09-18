@@ -17,6 +17,24 @@ export function visitDrugsSql(singleVisit = false): string {
   `;
 }
 
+/** Parameters: visit date, VN. Keep every active usage for a drug, including missing catalogue text. */
+export function visitDrugUsagesSql(): string {
+  return `
+    SELECT DISTINCT active.icode, du.common_name
+    FROM (
+      SELECT op.icode, op.drugusage
+      FROM opitemrece op
+      INNER JOIN ovst visit ON visit.vn = op.vn
+      WHERE visit.vstdate = ? AND op.vn = ?
+        AND (visit.an IS NULL OR visit.an = '')
+      GROUP BY op.icode, op.drugusage
+      HAVING SUM(COALESCE(op.qty, 0)) > 0
+    ) active
+    LEFT JOIN drugusage du ON du.drugusage = active.drugusage
+    ORDER BY active.icode, du.common_name
+  `;
+}
+
 export function hospitalDate(now = new Date()): string {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit",

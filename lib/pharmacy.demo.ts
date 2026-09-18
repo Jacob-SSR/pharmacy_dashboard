@@ -75,7 +75,7 @@ export function demoQueue(date: string): QueueRow[] {
 
 // ─── รายการยาตัวอย่าง ─────────────────────────────────────────────────────────
 // ชุดยาสามัญที่ห้องยา OPD จ่ายบ่อย — ใช้เฉพาะตอนยังไม่ต่อ HOSxP
-const DEMO_DRUGS: readonly Omit<DrugLine, "qty">[] = [
+const DEMO_DRUGS: readonly Omit<DrugLine, "qty" | "usageNames">[] = [
   { icode: "1000001", name: "Paracetamol", strength: "500 mg", units: "เม็ด" },
   { icode: "1000002", name: "Amoxicillin", strength: "500 mg", units: "แคปซูล" },
   { icode: "1000003", name: "Simethicone", strength: "80 mg", units: "เม็ด" },
@@ -102,5 +102,6 @@ export function demoDrugLines(vn: string): DrugLine[] {
   return Array.from({ length: n }, (_, i) => ({
     ...DEMO_DRUGS[(offset + i) % DEMO_DRUGS.length],
     qty: (i + 1) * 10,
+    usageNames: ["ไม่ระบุวิธีใช้ยา"],
   }));
 }

@@ -244,6 +244,9 @@ function DrugModal({ row, date, onClose }: { row: QueueRow; date: string; onClos
                   <span className="drug-name">
                     {l.name}
                     {l.strength && <span className="drug-strength"> · {l.strength}</span>}
+                    {l.usageNames.map((usage) => (
+                      <span className="drug-usage" key={usage}>วิธีใช้ยา: {usage}</span>
+                    ))}
                   </span>
                   <span className="drug-qty">{l.qty.toLocaleString("th-TH")} {l.units}</span>
                 </li>

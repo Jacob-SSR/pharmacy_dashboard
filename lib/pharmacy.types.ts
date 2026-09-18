@@ -74,6 +74,8 @@ export interface PharmacyQueueData {
 
 /** 1 บรรทัดยาของผู้ป่วย 1 คน (ใช้ในหน้าต่างรายละเอียด) */
 export interface DrugLine {
+  /** วิธีใช้ตาม drugusage.common_name อาจมีหลายวิธีต่อรหัสยา */
+  usageNames: string[];
   icode: string;
   name: string;
   strength: string;

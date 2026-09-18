@@ -21,7 +21,7 @@
 import "server-only";
 import type { RowDataPacket } from "mysql2";
 import { getDb } from "./db";
-import { hospitalDate, visitDrugsSql } from "./pharmacy.drugs";
+import { hospitalDate, visitDrugsSql, visitDrugUsagesSql } from "./pharmacy.drugs";
 import {
   HOSPITAL_NAME,
   MANY_ITEMS_THRESHOLD,
@@ -418,11 +418,22 @@ export async function getDrugLines(
     [date, vn],
   );
 
+  // Read usages separately so multiple instructions cannot multiply quantities.
+  const [usageRows] = await db.query<RowDataPacket[]>(visitDrugUsagesSql(), [date, vn]);
+  const usagesByCode = new Map<string, Set<string>>();
+  for (const usage of usageRows) {
+    const code = str(usage.icode);
+    const names = usagesByCode.get(code) ?? new Set<string>();
+    names.add(str(usage.common_name) || "ไม่ระบุวิธีใช้ยา");
+    usagesByCode.set(code, names);
+  }
+
   return rows.map((r) => ({
     icode: str(r.icode),
     name: str(r.name),
     strength: str(r.strength),
     units: str(r.units),
     qty: Number(r.qty) || 0,
+    usageNames: [...(usagesByCode.get(str(r.icode)) ?? ["ไม่ระบุวิธีใช้ยา"])],
   }));
 }

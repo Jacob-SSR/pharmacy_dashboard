@@ -382,6 +382,7 @@ tbody tr:last-child td { border-bottom: none; }
 }
 .drug-list li:last-child { border-bottom: none; }
 .drug-name { flex: 1; }
+.drug-usage { display: block; margin-top: 6px; font-size: 14px; font-weight: 400; white-space: pre-wrap; overflow-wrap: anywhere; }
 .drug-strength { font-size: 13px; color: var(--muted); }
 .drug-qty { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
 .modal-note { font-size: 14px; color: var(--muted); padding: 14px 0; }
