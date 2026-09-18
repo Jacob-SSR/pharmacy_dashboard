@@ -9,7 +9,6 @@ import {
   useSyncExternalStore,
 } from "react";
 import Link from "next/link";
-import { paymentLabel } from "@/lib/pharmacy.payment";
 import {
   BASKET_META,
   BASKET_SEQ,
@@ -636,7 +635,7 @@ export default function PharmacyDashboard({
           <p className="modal-note">
             นับรหัสยาไม่ซ้ำที่มีจำนวนสุทธิมากกว่า 0 ตาม VN ของวันที่เลือก · ไม่รวมค่าบริการ
             {" · "}ตะกร้าด้านบนนับผู้ที่ยังไม่รับยา (รวมเรียกแล้ว)
-            {!isTv && " · จ่ายแล้ว = พบใบเสร็จที่ไม่ยกเลิก ยังไม่ยืนยันว่าจ่ายครบ · ไม่พบใบเสร็จอาจใช้สิทธิรักษา"}
+            {!isTv && " · ส่งมาจากแผนก = แผนกก่อนหน้าล่าสุดที่ระบบบันทึก"}
             {!isTv && stageFilter === "waiting" && " · ตารางแสดงเฉพาะรอเรียก — กดการ์ดใบสั่งยาเข้าซ้ำเพื่อดูทุกสถานะ"}
           </p>
           <div className="table-card" ref={tableRef}>
@@ -650,7 +649,7 @@ export default function PharmacyDashboard({
                     {th("hn", "HN")}
                     {th("name", "ชื่อ - นามสกุล")}
                     {th("pttype", "สิทธิการรักษา")}
-                    {!isTv && <th>จ่ายเงินหรือยัง</th>}
+                    {!isTv && <th>ส่งมาจากแผนก</th>}
                     {th("basket", "ตะกร้า")}
                     {th("items", "ชนิดยา", "col-items")}
                     {th("wait", "เวลารอ")}
@@ -683,14 +682,9 @@ export default function PharmacyDashboard({
                         </td>
                         {!isTv && (
                           <td>
-                            <span className={`tag ${r.receiptCount > 0 && r.receiptAmount > 0 ? "st-5" : "pt-c"}`}>
-                              {paymentLabel(r.receiptCount, r.receiptAmount)}
+                            <span className="tag pt-c">
+                              {r.referringDept || (r.referringDeptCode ? `แผนก ${r.referringDeptCode}` : "ไม่ระบุแผนก")}
                             </span>
-                            {r.receiptCount > 0 && (
-                              <div className="payment-amount">
-                                ยอดใบเสร็จ {r.receiptAmount.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
-                              </div>
-                            )}
                           </td>
                         )}
                         <td><BasketTag basket={r.basket} /></td>

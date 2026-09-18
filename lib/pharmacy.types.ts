@@ -37,9 +37,10 @@ export interface QueueRow {
   waitMin: number;
   /** สิทธิการรักษา (pttype.name) เช่น เบิกจ่ายตรง / ชำระเงินเอง / ข้าราชการ */
   pttype: string;
-  /** ใบเสร็จที่ไม่ยกเลิกตาม VN — ไม่ได้ยืนยันว่าชำระครบทั้ง visit */
-  receiptCount: number;
-  receiptAmount: number;
+  /** แผนกก่อนหน้าล่าสุดจาก ovst.last_dep ไม่ใช่ประวัติการส่งต่อ */
+  referringDeptCode: string;
+  /** ชื่อแผนกจาก kskdepartment.department */
+  referringDept: string;
   /** depcode ปัจจุบันของผู้ป่วย (ovst.cur_dep) */
   curDeptCode: string;
   /** ชื่อแผนกปัจจุบันของผู้ป่วย */
